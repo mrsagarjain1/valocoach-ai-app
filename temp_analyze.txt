@@ -1,0 +1,6 @@
+Analyzing 2 items...                                            
+
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:381:45 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:381:49 - unnecessary_underscores
+
+2 issues found. (ran in 1.7s)

@@ -17,7 +17,14 @@ class _BattlepassScreenState extends ConsumerState<BattlepassScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(length: 5, vsync: this);
+    
+    // Fetch battlepass data on mount
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(battlepassProvider.notifier).fetchAll();
+      }
+    });
   }
 
   @override
@@ -78,10 +85,14 @@ class _BattlepassScreenState extends ConsumerState<BattlepassScreen>
                   ),
                   indicatorSize: TabBarIndicatorSize.tab,
                   dividerColor: Colors.transparent,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
                   tabs: const [
+                    Tab(text: 'TRACK'),
                     Tab(text: 'DAILY'),
                     Tab(text: 'WEEKLY'),
                     Tab(text: 'SEASONAL'),
+                    Tab(text: 'LEADERBOARD'),
                   ],
                 ),
               ),
@@ -96,9 +107,11 @@ class _BattlepassScreenState extends ConsumerState<BattlepassScreen>
                   : TabBarView(
                       controller: _tabCtrl,
                       children: [
+                        _BattlepassTrackTab(),
                         _QuestList(type: 'daily'),
                         _QuestList(type: 'weekly'),
-                        _SeasonalView(),
+                        _QuestList(type: 'seasonal'),
+                        _LeaderboardTab(),
                       ],
                     ),
             ),
@@ -111,9 +124,12 @@ class _BattlepassScreenState extends ConsumerState<BattlepassScreen>
 
 // ─── XP Badge ─────────────────────────────────────────────────────────────────
 
-class _XpBadge extends StatelessWidget {
+class _XpBadge extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bpState = ref.watch(battlepassProvider);
+    final currentXp = bpState.battlepass?['total_xp'] ?? 0;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -124,7 +140,7 @@ class _XpBadge extends StatelessWidget {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.star_rounded, color: AppTheme.accentYellow, size: 16),
         const SizedBox(width: 6),
-        Text('0 XP', style: AppTheme.krona(size: 12, color: AppTheme.accentYellow)),
+        Text('$currentXp XP', style: AppTheme.krona(size: 12, color: AppTheme.accentYellow)),
       ]),
     );
   }
@@ -132,12 +148,12 @@ class _XpBadge extends StatelessWidget {
 
 // ─── Gate ─────────────────────────────────────────────────────────────────────
 
-class _BattlepassGate extends StatelessWidget {
+class _BattlepassGate extends ConsumerWidget {
   final AuthState auth;
   const _BattlepassGate({required this.auth});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final needsSignIn = !auth.isClerkSignedIn;
 
     return Center(
@@ -168,7 +184,13 @@ class _BattlepassGate extends StatelessWidget {
           ),
           const SizedBox(height: 28),
           GestureDetector(
-            onTap: () => Navigator.of(context).pushNamed(needsSignIn ? '/onboarding' : '/home'),
+            onTap: () {
+              if (needsSignIn) {
+                Navigator.of(context).pushNamed('/clerk-login');
+              } else {
+                ref.read(bottomNavIndexProvider.notifier).state = 3;
+              }
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
               decoration: BoxDecoration(
@@ -192,9 +214,26 @@ class _QuestList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // TODO: wire to real API when Riot is linked
-    // Mock data for now
-    final quests = _mockQuests(type);
+    final bpState = ref.watch(battlepassProvider);
+    
+    final List quests;
+    if (type == 'daily') {
+      quests = bpState.dailyQuests;
+    } else if (type == 'weekly') {
+      quests = bpState.weeklyQuests;
+    } else {
+      quests = bpState.seasonalQuests;
+    }
+
+    if (bpState.isLoading && quests.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: AppTheme.accentYellow));
+    }
+    
+    if (quests.isEmpty) {
+      return Center(
+        child: Text('No $type quests available.', style: AppTheme.inter(color: AppTheme.textMuted)),
+      );
+    }
 
     return ListView.builder(
       physics: const BouncingScrollPhysics(),
@@ -204,138 +243,268 @@ class _QuestList extends ConsumerWidget {
     );
   }
 
-  List<Map<String, dynamic>> _mockQuests(String type) {
-    if (type == 'daily') {
-      return [
-        {'title': 'Win 2 Competitive Matches', 'xp': 200, 'progress': 1, 'total': 2},
-        {'title': 'Get 20 Headshots', 'xp': 150, 'progress': 8, 'total': 20},
-        {'title': 'Play 3 Matches', 'xp': 100, 'progress': 3, 'total': 3, 'completed': true},
-      ];
-    } else if (type == 'weekly') {
-      return [
-        {'title': 'Win 10 Competitive Matches', 'xp': 800, 'progress': 3, 'total': 10},
-        {'title': 'Deal 50,000 Damage', 'xp': 600, 'progress': 21000, 'total': 50000},
-        {'title': 'Achieve 15+ Kills in 3 Matches', 'xp': 500, 'progress': 1, 'total': 3},
-        {'title': 'Play 5 Different Agents', 'xp': 450, 'progress': 2, 'total': 5},
-      ];
-    } else {
-      return [
-        {'title': 'Reach Platinum Rank', 'xp': 3000, 'progress': 50, 'total': 100},
-        {'title': 'Win 50 Competitive Matches', 'xp': 2500, 'progress': 18, 'total': 50},
-        {'title': 'Get 500 Total Kills', 'xp': 2000, 'progress': 182, 'total': 500},
-      ];
-    }
-  }
 }
 
 class _QuestCard extends StatelessWidget {
   final Map<String, dynamic> quest;
   const _QuestCard({required this.quest});
 
+  Color _getCategoryColor(String category) {
+    if (category.toLowerCase() == 'combat') return AppTheme.primaryRed;
+    if (category.toLowerCase() == 'objective') return const Color(0xFF9D4EDD);
+    if (category.toLowerCase() == 'tactical') return const Color(0xFF00E5FF);
+    return Colors.amber;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final completed = quest['completed'] == true || quest['progress'] >= quest['total'];
-    final pct = (quest['progress'] / quest['total']).clamp(0.0, 1.0) as double;
-    final xp = quest['xp'] as int;
-    final color = completed ? AppTheme.accentGreen : AppTheme.primaryRed;
+    final questData = quest['quest_data'] as Map<String, dynamic>? ?? {};
+    final progressMap = quest['progress'] as Map<String, dynamic>? ?? {};
+
+    final category = questData['category'] as String? ?? 'Combat';
+    final difficulty = questData['difficulty'] as String? ?? 'Medium';
+    
+    final progress = double.tryParse((progressMap['current_value'] ?? 0).toString()) ?? 0.0;
+    final total = double.tryParse((progressMap['target_value'] ?? 1).toString()) ?? 1.0;
+    final completed = quest['status'] == 'completed' || progress >= total;
+    final pct = (progress / total).clamp(0.0, 1.0);
+    final xp = (questData['xp'] ?? 0);
+    final title = (questData['name'] ?? quest['title'] ?? 'Unknown Quest').toString();
+    
+    final color = completed ? AppTheme.accentGreen : _getCategoryColor(category);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: AppTheme.surfaceDark,
         borderRadius: BorderRadius.circular(16),
-        border: Border(left: BorderSide(color: color, width: 3)),
+        border: Border.all(color: completed ? AppTheme.accentGreen.withValues(alpha: 0.3) : AppTheme.borderColor),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-            child: Text(quest['title'].toString(), style: AppTheme.inter(size: 13, weight: FontWeight.w600)),
+      child: Stack(
+        children: [
+          // Left Accent Border
+          Positioned(
+            left: 0, top: 0, bottom: 0,
+            child: Container(width: 4, color: color),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppTheme.accentYellow.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.star_rounded, color: AppTheme.accentYellow, size: 12),
-              const SizedBox(width: 4),
-              Text('+$xp XP', style: AppTheme.krona(size: 9, color: AppTheme.accentYellow)),
+          
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              
+              // Top Row (Category + Difficulty)
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+                  child: Text(category.toUpperCase(), style: AppTheme.krona(size: 8, color: color, letterSpacing: 1)),
+                ),
+                Text(difficulty.toUpperCase(), style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.w600)),
+              ]),
+              
+              const SizedBox(height: 12),
+              
+              // Title
+              Text(title, style: AppTheme.inter(size: 14, weight: FontWeight.w700, color: Colors.white)),
+              const SizedBox(height: 4),
+              Text(questData['description']?.toString() ?? 'Complete this mission to earn rewards', style: AppTheme.inter(size: 11, color: AppTheme.textSecondary)),
+              
+              const SizedBox(height: 16),
+              
+              // Custom Skewed Progress Bar
+              Container(
+                height: 12,
+                decoration: BoxDecoration(color: AppTheme.darkBg, border: Border.all(color: AppTheme.borderColor)),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Stack(
+                      children: [
+                        Container(
+                          width: constraints.maxWidth * pct,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: [color.withValues(alpha: 0.7), color]),
+                          ),
+                        ),
+                        // Skewed lines overlay
+                        ...List.generate((constraints.maxWidth / 20).floor(), (i) => Positioned(
+                          left: i * 20.0, top: 0, bottom: 0,
+                          child: Container(
+                            width: 1, 
+                            color: Colors.black.withValues(alpha: 0.2), 
+                            transform: Matrix4.skewX(-0.3),
+                          ),
+                        )),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              
+              const SizedBox(height: 6),
+              // Progress Text
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('${progress.toInt()} / ${total.toInt()}', style: AppTheme.krona(size: 9, color: AppTheme.textMuted)),
+                Text(completed ? '100%' : '${(pct * 100).toStringAsFixed(0)}%', style: AppTheme.krona(size: 9, color: color)),
+              ]),
+
+              const SizedBox(height: 16),
+              
+              // Bottom Row (XP + CTA)
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Row(children: [
+                  const Icon(Icons.star_rounded, color: AppTheme.accentYellow, size: 16),
+                  const SizedBox(width: 4),
+                  Text('$xp XP', style: AppTheme.krona(size: 12, color: AppTheme.accentYellow)),
+                ]),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: completed ? AppTheme.accentGreen.withValues(alpha: 0.15) : AppTheme.darkBg,
+                    border: Border.all(color: completed ? AppTheme.accentGreen.withValues(alpha: 0.3) : AppTheme.borderColor),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    completed ? 'CLAIMED' : 'TRACKING',
+                    style: AppTheme.krona(
+                      size: 9,
+                      color: completed ? AppTheme.accentGreen : AppTheme.textPrimary,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ]),
+              
             ]),
           ),
-        ]),
-        const SizedBox(height: 10),
-        // Progress bar
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: pct,
-            backgroundColor: AppTheme.borderColor,
-            color: color,
-            minHeight: 5,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(
-            '${quest['progress']} / ${quest['total']}',
-            style: AppTheme.inter(size: 11, color: AppTheme.textMuted),
-          ),
-          Text(
-            completed ? '✓ COMPLETE' : '${(pct * 100).toStringAsFixed(0)}%',
-            style: AppTheme.inter(size: 11, color: color, weight: FontWeight.w700),
-          ),
-        ]),
-      ]),
+        ],
+      ),
     );
   }
 }
 
-// ─── Seasonal View ────────────────────────────────────────────────────────────
+// ─── Battlepass Track Tab ───────────────────────────────────────────────────────
 
-class _SeasonalView extends StatelessWidget {
+class _BattlepassTrackTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Pass track
-        Text('PASS TRACK', style: AppTheme.krona(size: 10, color: AppTheme.textMuted, letterSpacing: 2)),
+        Text('SEASON 1 BATTLEPASS', style: AppTheme.krona(size: 10, color: AppTheme.textMuted, letterSpacing: 2)),
         const SizedBox(height: 12),
         _PassTrack(),
-        const SizedBox(height: 24),
-
-        // Seasonal quests
-        Text('SEASONAL QUESTS', style: AppTheme.krona(size: 10, color: AppTheme.textMuted, letterSpacing: 2)),
-        const SizedBox(height: 12),
-        ...[
-          {'title': 'Reach Platinum Rank', 'xp': 3000, 'progress': 50, 'total': 100},
-          {'title': 'Win 50 Competitive Matches', 'xp': 2500, 'progress': 18, 'total': 50},
-          {'title': 'Get 500 Total Kills', 'xp': 2000, 'progress': 182, 'total': 500},
-        ].map((q) => _QuestCard(quest: q)),
         const SizedBox(height: 40),
       ]),
     );
   }
 }
 
-class _PassTrack extends StatelessWidget {
+// ─── Leaderboard Tab ──────────────────────────────────────────────────────────
+
+class _LeaderboardTab extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
-    const totalTiers = 10;
-    const currentTier = 2;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bpState = ref.watch(battlepassProvider);
+    final players = bpState.leaderboard;
+    final auth = ref.watch(authProvider);
+
+    if (bpState.isLoading && players.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: AppTheme.accentYellow));
+    }
+
+    if (players.isEmpty) {
+      return const Center(child: Text('Leaderboard is currently empty.', style: TextStyle(color: Colors.white54)));
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(20),
+      itemCount: players.length,
+      itemBuilder: (context, index) {
+        final p = players[index];
+        final rank = p['rank'] ?? (index + 1);
+        final isMe = p['clerk_id'] == auth.clerkUserId;
+        final isTop3 = rank <= 3;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isMe ? AppTheme.primaryRed.withValues(alpha: 0.1) : AppTheme.cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isMe 
+                ? AppTheme.primaryRed.withValues(alpha: 0.4) 
+                : (isTop3 ? AppTheme.accentYellow.withValues(alpha: 0.3) : AppTheme.borderColor),
+              width: isMe ? 2 : 1,
+            ),
+            boxShadow: isMe ? [
+              BoxShadow(color: AppTheme.primaryRed.withValues(alpha: 0.1), blurRadius: 12)
+            ] : null,
+          ),
+          child: Row(children: [
+            SizedBox(
+              width: 40,
+              child: Text(
+                '#$rank', 
+                style: AppTheme.krona(
+                  size: 14, 
+                  color: isTop3 ? AppTheme.accentYellow : AppTheme.textMuted
+                )
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (p['player_name'] ?? 'Unknown').toString(), 
+                    style: AppTheme.inter(
+                      size: 14, 
+                      weight: FontWeight.bold,
+                      color: isMe ? Colors.white : AppTheme.textPrimary,
+                    )
+                  ),
+                  if (isMe)
+                    Text('YOU', style: AppTheme.krona(size: 8, color: AppTheme.primaryRed, letterSpacing: 1)),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('${p['total_xp'] ?? 0} XP', style: AppTheme.krona(size: 11, color: AppTheme.accentYellow)),
+                const SizedBox(height: 2),
+                Text('LVL ${p['level'] ?? 1}', style: AppTheme.inter(size: 10, color: AppTheme.textSecondary, weight: FontWeight.w600)),
+              ],
+            ),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+class _PassTrack extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bpState = ref.watch(battlepassProvider);
+    const totalTiers = 50;
+    final currentTier = bpState.battlepass?['level'] ?? 1;
 
     return SizedBox(
       height: 80,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         itemCount: totalTiers,
         itemBuilder: (_, i) {
           final tier = i + 1;
           final isUnlocked = tier <= currentTier;
           final isCurrent = tier == currentTier;
+          
           return Container(
             width: 60,
             margin: const EdgeInsets.only(right: 8),
@@ -343,20 +512,27 @@ class _PassTrack extends StatelessWidget {
               gradient: isUnlocked
                   ? AppTheme.primaryGradient
                   : const LinearGradient(colors: [AppTheme.cardBg, AppTheme.cardBg]),
+              color: isUnlocked ? null : AppTheme.surfaceDark,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isCurrent ? AppTheme.primaryRed : AppTheme.borderColor,
+                color: isCurrent ? AppTheme.accentGreen : AppTheme.borderColor,
                 width: isCurrent ? 2 : 1,
               ),
+              boxShadow: isCurrent ? [
+                BoxShadow(color: AppTheme.accentGreen.withValues(alpha: 0.2), blurRadius: 10)
+              ] : null,
             ),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(
                 isUnlocked ? Icons.military_tech_rounded : Icons.lock_outline_rounded,
-                color: isUnlocked ? Colors.white : AppTheme.textMuted,
-                size: 22,
+                color: isUnlocked ? Colors.white : AppTheme.textMuted.withValues(alpha: 0.5),
+                size: 24,
               ),
               const SizedBox(height: 4),
-              Text('T$tier', style: AppTheme.krona(size: 9, color: isUnlocked ? Colors.white : AppTheme.textMuted)),
+              Text('T$tier', style: AppTheme.krona(
+                size: 9, 
+                color: isUnlocked ? Colors.white : AppTheme.textMuted,
+              )),
             ]),
           );
         },

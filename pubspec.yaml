@@ -33,6 +33,7 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   flutter_inappwebview: ^6.1.5
+  webview_flutter: ^4.10.0
 
   # HTTP & API
   dio: ^5.7.0

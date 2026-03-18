@@ -159,28 +159,61 @@ class _EmptyView extends StatelessWidget {
 
 // ─── Main Stats Body ──────────────────────────────────────────────────────────
 
-class _StatsBody extends StatelessWidget {
+class _StatsBody extends ConsumerWidget {
   final Map<String, dynamic> data;
   const _StatsBody({required this.data});
 
   @override
-  Widget build(BuildContext context) {
-    final name       = (data['name'] ?? '').toString();
-    final tag        = (data['tag'] ?? '').toString();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rawName    = (data['player_name'] ?? '').toString();
+    final playerCard = (data['player_card_link'] ?? '').toString();
     final rank       = (data['current_rank'] ?? 'Unranked').toString();
     final peakRank   = (data['peak_rank'] ?? 'Unranked').toString();
     final topAgent   = (data['top_agent'] ?? '').toString();
     final bestMap    = (data['best_map'] ?? '').toString();
     final worstMap   = (data['worst_map'] ?? '').toString();
+    final placement  = (data['leaderboard_placement'] ?? '').toString();
+    final shields    = (data['rank_protection_shields'] ?? '').toString();
     final kd         = _fmt(data['overall_kd_ratio'], decimals: 2);
     final winRate    = _fmt(data['overall_win_percent'], suffix: '%');
     final hs         = _fmt(data['overall_headshot_percentage'], suffix: '%');
     final acs        = _fmt(data['overall_ACS'], decimals: 0);
     final matches    = data['matches'] as List? ?? [];
 
+    // Parse name and tag
+    String displayName = rawName;
+    String displayTag = '';
+    
+    if (rawName.contains('#')) {
+      final parts = rawName.split('#');
+      displayName = parts[0].trim();
+      displayTag = parts[1].trim();
+    }
+    
+    // Fallback to searched values if display name is empty or just the tag was parsed
+    final playerState = ref.watch(playerStatsProvider);
+    if (displayName.isEmpty && playerState.searchedName != null) {
+      displayName = playerState.searchedName!;
+    }
+    if (displayTag.isEmpty && playerState.searchedTag != null) {
+      displayTag = playerState.searchedTag!;
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.darkBg,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        title: Text('STATISTICS & AI COACH', style: AppTheme.krona(size: 14, letterSpacing: 1.5)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      extendBodyBehindAppBar: true,
       body: SafeArea(
+        top: false,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Column(
@@ -188,11 +221,12 @@ class _StatsBody extends StatelessWidget {
             children: [
               // ── Player Hero Card ─────────────────────────
               _PlayerHero(
-                name: name,
-                tag: tag,
+                name: displayName,
+                tag: displayTag,
                 rank: rank,
                 peakRank: peakRank,
                 topAgent: topAgent,
+                playerCard: playerCard,
               ),
 
               Padding(
@@ -220,17 +254,34 @@ class _StatsBody extends StatelessWidget {
                     const SizedBox(height: 10),
 
                     // Maps info row
-                    if (bestMap.isNotEmpty || worstMap.isNotEmpty)
-                      Row(children: [
-                        if (bestMap.isNotEmpty) Expanded(child: _MapChip(label: 'BEST MAP', map: bestMap, color: AppTheme.accentGreen)),
-                        if (bestMap.isNotEmpty && worstMap.isNotEmpty) const SizedBox(width: 10),
-                        if (worstMap.isNotEmpty) Expanded(child: _MapChip(label: 'WORST MAP', map: worstMap, color: AppTheme.primaryRed)),
-                      ]),
+                    if (bestMap.isNotEmpty || worstMap.isNotEmpty || placement.isNotEmpty || shields.isNotEmpty)
+                      Column(
+                        children: [
+                          if (placement.isNotEmpty || shields.isNotEmpty) ...[
+                             Row(children: [
+                              if (placement.isNotEmpty) Expanded(child: _StatChip(label: 'PLACEMENT', value: '#$placement', color: AppTheme.accentYellow, icon: Icons.leaderboard_rounded)),
+                              if (placement.isNotEmpty && shields.isNotEmpty) const SizedBox(width: 10),
+                              if (shields.isNotEmpty) Expanded(child: _StatChip(label: 'SHIELDS', value: shields, color: AppTheme.accentBlue, icon: Icons.shield_rounded)),
+                            ]),
+                            const SizedBox(height: 10),
+                          ],
+                          if (bestMap.isNotEmpty || worstMap.isNotEmpty)
+                            Row(children: [
+                              if (bestMap.isNotEmpty) Expanded(child: _MapChip(label: 'BEST MAP', map: bestMap, color: AppTheme.accentGreen)),
+                              if (bestMap.isNotEmpty && worstMap.isNotEmpty) const SizedBox(width: 10),
+                              if (worstMap.isNotEmpty) Expanded(child: _MapChip(label: 'WORST MAP', map: worstMap, color: AppTheme.primaryRed)),
+                            ]),
+                        ],
+                      ),
 
                     const SizedBox(height: 24),
 
                     // ── AI Coach CTA ─────────────────────
-                    _AiCta(name: name, tag: tag),
+                    _AiCta(
+                      name: displayName, 
+                      tag: displayTag,
+                      region: data['region']?.toString() ?? 'ap',
+                    ),
 
                     const SizedBox(height: 28),
 
@@ -246,7 +297,7 @@ class _StatsBody extends StatelessWidget {
                         ),
                       )
                     else
-                      ...matches.take(10).map((m) => _MatchCard(match: m as Map<String, dynamic>, rank: rank)),
+                      _MatchListExpander(matches: matches, rank: rank),
 
                     const SizedBox(height: 40),
                   ],
@@ -263,14 +314,14 @@ class _StatsBody extends StatelessWidget {
 // ─── Player Hero Card ─────────────────────────────────────────────────────────
 
 class _PlayerHero extends StatelessWidget {
-  final String name, tag, rank, peakRank, topAgent;
-  const _PlayerHero({required this.name, required this.tag, required this.rank, required this.peakRank, required this.topAgent});
+  final String name, tag, rank, peakRank, topAgent, playerCard;
+  const _PlayerHero({required this.name, required this.tag, required this.rank, required this.peakRank, required this.topAgent, required this.playerCard});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: 190,
+      height: 230,
       color: const Color(0xFF120010),
       child: Stack(
         children: [
@@ -290,16 +341,20 @@ class _PlayerHero extends StatelessWidget {
           // Subtle grid
           Positioned.fill(child: CustomPaint(painter: _HeroGridPainter())),
 
-          // Agent cutout — large, right side
+          // Agent cutout — large, right side, constrained width
           if (topAgent.isNotEmpty)
             Positioned(
               right: 0,
               bottom: 0,
               top: -10,
-              child: Image.asset(
-                _agentAsset(topAgent),
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const SizedBox(width: 120),
+              child: SizedBox(
+                width: 140, // Constrain width to prevent overflow with peak rank text
+                child: Image.asset(
+                  _agentAsset(topAgent),
+                  fit: BoxFit.contain,
+                  alignment: Alignment.bottomRight,
+                  errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                ),
               ),
             ),
 
@@ -320,29 +375,45 @@ class _PlayerHero extends StatelessWidget {
 
           // Content
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 160, 20),
+            padding: const EdgeInsets.fromLTRB(20, 80, 160, 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Rank Image + name
+                // Player Card + name
                 Row(children: [
-                  Image.asset(_rankAsset(rank), width: 44, height: 44,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.emoji_events, color: AppTheme.accentYellow, size: 36),
+                   Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: AppTheme.darkBg.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.primaryRed.withValues(alpha: 0.5)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: playerCard.isNotEmpty 
+                      ? Image.network(playerCard, fit: BoxFit.cover, 
+                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.white24, size: 30))
+                      : const Icon(Icons.person, color: Colors.white24, size: 30),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(name.toUpperCase(), style: AppTheme.krona(size: 22), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Text('#$tag', style: AppTheme.inter(size: 12, color: AppTheme.textMuted, weight: FontWeight.w500)),
-                    ]),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start, 
+                      children: [
+                        Text(name.toUpperCase(), style: AppTheme.krona(size: 18), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        if (tag.isNotEmpty)
+                          Text('#$tag', style: AppTheme.inter(size: 13, color: AppTheme.textMuted, weight: FontWeight.w700)),
+                      ],
+                    ),
                   ),
                 ]),
                 const Spacer(),
                 // Rank chips
-                Row(children: [
-                  _RankBadge(label: 'CURRENT', value: rank, color: AppTheme.primaryRed),
-                  const SizedBox(width: 8),
-                  _RankBadge(label: 'PEAK', value: peakRank, color: AppTheme.accentYellow),
+                Column(children: [
+                  _RankBadge(label: 'CURRENT', value: rank, color: AppTheme.primaryRed, iconAsset: _rankAsset(rank)),
+                  const SizedBox(height: 8),
+                  _RankBadge(label: 'PEAK', value: peakRank, color: AppTheme.accentYellow, iconAsset: _rankAsset(peakRank)),
                 ]),
               ],
             ),
@@ -358,8 +429,12 @@ class _HeroGridPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final p = Paint()..color = const Color(0xFFFFFFFF).withValues(alpha: 0.025)..strokeWidth = 0.5;
     const s = 36.0;
-    for (double x = 0; x < size.width; x += s) canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
-    for (double y = 0; y < size.height; y += s) canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
+    for (double x = 0; x < size.width; x += s) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
+    }
+    for (double y = 0; y < size.height; y += s) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
+    }
   }
   @override bool shouldRepaint(_) => false;
 }
@@ -367,7 +442,8 @@ class _HeroGridPainter extends CustomPainter {
 class _RankBadge extends StatelessWidget {
   final String label, value;
   final Color color;
-  const _RankBadge({required this.label, required this.value, required this.color});
+  final String? iconAsset;
+  const _RankBadge({required this.label, required this.value, required this.color, this.iconAsset});
 
   @override
   Widget build(BuildContext context) {
@@ -380,7 +456,45 @@ class _RankBadge extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: AppTheme.inter(size: 8, color: color, weight: FontWeight.w700, letterSpacing: 1)),
-        Text(value, style: AppTheme.inter(size: 11, weight: FontWeight.w600)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (iconAsset != null) ...[
+              Image.asset(iconAsset!, width: 14, height: 14, errorBuilder: (context, error, stackTrace) => const SizedBox()),
+              const SizedBox(width: 4),
+            ],
+            Text(value, style: AppTheme.inter(size: 11, weight: FontWeight.w600)),
+          ],
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── Stat Chip (Leaderboard/Shields) ──────────────────────────────────────────
+
+class _StatChip extends StatelessWidget {
+  final String label, value;
+  final Color color;
+  final IconData icon;
+  const _StatChip({required this.label, required this.value, required this.color, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 10),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: AppTheme.inter(size: 9, color: AppTheme.textMuted, weight: FontWeight.w700, letterSpacing: 0.5)),
+          Text(value, style: AppTheme.krona(size: 12, color: Colors.white)),
+        ]),
       ]),
     );
   }
@@ -437,7 +551,7 @@ class _MapChip extends StatelessWidget {
         // blurred map bg
         Positioned.fill(child: Image.asset(
           _mapAsset(map), fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const SizedBox(),
+          errorBuilder: (context, error, stackTrace) => const SizedBox(),
         )),
         Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.62))),
         Padding(
@@ -455,8 +569,8 @@ class _MapChip extends StatelessWidget {
 // ─── AI CTA ───────────────────────────────────────────────────────────────────
 
 class _AiCta extends ConsumerWidget {
-  final String name, tag;
-  const _AiCta({required this.name, required this.tag});
+  final String name, tag, region;
+  const _AiCta({required this.name, required this.tag, required this.region});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -465,7 +579,11 @@ class _AiCta extends ConsumerWidget {
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => AiAnalysisScreen(playerName: name, playerTag: tag),
+          builder: (_) => AiAnalysisScreen(
+            playerName: name, 
+            playerTag: tag,
+            region: region,
+          ),
         ));
       },
       child: Container(
@@ -565,7 +683,7 @@ class _MatchCard extends StatelessWidget {
               width: 80,
               child: Stack(children: [
                 Image.asset(_mapAsset(mapName), width: 80, height: double.infinity, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(color: AppTheme.surfaceDark),
+                  errorBuilder: (context, error, stackTrace) => Container(color: AppTheme.surfaceDark),
                 ),
                 Positioned.fill(child: Container(
                   decoration: BoxDecoration(
@@ -589,7 +707,7 @@ class _MatchCard extends StatelessWidget {
                 child: SizedBox(
                   width: 46, height: 46,
                   child: Image.asset(_agentAsset(agent), fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (context, error, stackTrace) => Container(
                       color: AppTheme.surfaceDark,
                       child: const Icon(Icons.person_rounded, color: AppTheme.textMuted, size: 26),
                     ),
@@ -608,11 +726,16 @@ class _MatchCard extends StatelessWidget {
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text('$myScore : $enemyScore', style: AppTheme.krona(size: 15, color: accent)),
                 const SizedBox(height: 3),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                  child: Text(tag, style: AppTheme.inter(size: 9, color: accent, weight: FontWeight.w700)),
-                ),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(tag, style: AppTheme.krona(size: 8, color: accent, letterSpacing: 0.5)),
+                  ),
+                ]),
               ]),
 
               const SizedBox(width: 14),
@@ -629,6 +752,70 @@ class _MatchCard extends StatelessWidget {
     );
   }
 }
+
+// ─── Match List Expander ──────────────────────────────────────────────────────
+
+class _MatchListExpander extends StatefulWidget {
+  final List<dynamic> matches;
+  final String rank;
+
+  const _MatchListExpander({required this.matches, required this.rank});
+
+  @override
+  State<_MatchListExpander> createState() => _MatchListExpanderState();
+}
+
+class _MatchListExpanderState extends State<_MatchListExpander> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // Determine how many matches to show initially
+    const initialCount = 5;
+    final totalCount = widget.matches.length;
+    
+    // If we have less than or equal to initialCount matches, just show all without expander
+    if (totalCount <= initialCount) {
+      return Column(
+        children: widget.matches.map((m) => _MatchCard(match: m as Map<String, dynamic>, rank: widget.rank)).toList(),
+      );
+    }
+
+    final visibleMatches = _isExpanded ? widget.matches : widget.matches.take(initialCount).toList();
+
+    return Column(
+      children: [
+        ...visibleMatches.map((m) => _MatchCard(match: m as Map<String, dynamic>, rank: widget.rank)),
+        
+        const SizedBox(height: 12),
+        Center(
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _isExpanded = !_isExpanded;
+              });
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _isExpanded ? 'SHOW LESS' : 'SHOW MORE (${totalCount - initialCount})',
+                  style: AppTheme.inter(color: AppTheme.textMuted, size: 12, weight: FontWeight.w600),
+                ),
+                Icon(
+                  _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  color: AppTheme.textMuted,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 
 // ─── Section Label ────────────────────────────────────────────────────────────
 

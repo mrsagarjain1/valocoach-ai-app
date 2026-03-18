@@ -4,7 +4,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../config/app_theme.dart';
 
 /// Riot Login via WebView.
-/// Pop returns Map<String, String>? with {'puuid': ..., 'token': ...}
+/// Pop returns `Map<String, String>?` with `{'puuid': ..., 'token': ...}`
 class RiotLoginScreen extends StatefulWidget {
   const RiotLoginScreen({super.key});
 

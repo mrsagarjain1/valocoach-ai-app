@@ -54,12 +54,14 @@ class AppTheme {
     Color color = textPrimary,
     FontWeight weight = FontWeight.w400,
     double? letterSpacing,
+    double? height,
   }) =>
       GoogleFonts.inter(
         fontSize: size,
         color: color,
         fontWeight: weight,
         letterSpacing: letterSpacing,
+        height: height,
       );
 
   // ─── Theme Data ───────────────────────────────────────────────────────────

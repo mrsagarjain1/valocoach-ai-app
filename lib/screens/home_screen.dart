@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/app_theme.dart';
 import '../providers/app_providers.dart';
+import 'statistics_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -52,7 +53,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final cleanName = parts[0].trim().replaceAll(RegExp(r'\s+'), '');
     final cleanTag  = parts[1].trim().replaceAll(RegExp(r'\s+'), '');
     ref.read(playerStatsProvider.notifier).searchPlayer(cleanName, cleanTag, region: _selectedRegion);
-    ref.read(bottomNavIndexProvider.notifier).state = 1;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StatisticsScreen()));
   }
 
   @override
@@ -270,8 +271,8 @@ class _HeroBanner extends StatelessWidget {
               imageUrl: 'https://www.valocoach.live/media/agents/jett.png',
               height: 250,
               fit: BoxFit.contain,
-              placeholder: (_, __) => const SizedBox(),
-              errorWidget: (_, __, ___) => const SizedBox(),
+              placeholder: (_, _) => const SizedBox(),
+              errorWidget: (_, _, _) => const SizedBox(),
             ),
           ),
         ),

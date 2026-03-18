@@ -1,0 +1,14 @@
+Analyzing 2 items...                                            
+
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:342:37 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:342:41 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:381:45 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:381:49 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:540:29 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:540:33 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:668:37 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:668:41 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:692:39 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\screens\statistics_screen.dart:692:43 - unnecessary_underscores
+
+10 issues found. (ran in 1.3s)

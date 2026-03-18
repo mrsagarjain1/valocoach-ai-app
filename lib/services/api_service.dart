@@ -12,7 +12,7 @@ class ApiService {
     _dio = Dio(BaseOptions(
       baseUrl: ApiConfig.backendUrl,
       connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 240),
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': ApiConfig.apiKey,
@@ -58,10 +58,16 @@ class ApiService {
   Future<Map<String, dynamic>> getPlayerAnalysis({
     required String name,
     required String tag,
+    String region = 'ap',
+    String mode = 'competitive',
+    String platform = 'pc',
   }) async {
     final response = await _dio.post('/player-analysis', data: {
       'name': name,
       'tag': tag,
+      'region': region,
+      'mode': mode,
+      'platform': platform,
     });
     return response.data;
   }
@@ -69,6 +75,31 @@ class ApiService {
   // ─── Match Analysis AI ────────────────────────────────
   Future<Map<String, dynamic>> getMatchAnalysis(String matchId) async {
     final response = await _dio.post('/api/match-analysis/ai/$matchId');
+    return response.data;
+  }
+
+  // ─── Match Analysis Full Data ─────────────────────────
+  Future<Map<String, dynamic>> getMatchAnalysisData() async {
+    final response = await _dio.get('/api/match-analysis');
+    return response.data;
+  }
+
+  // ─── Premium Sync ─────────────────────────────────────
+  Future<Map<String, dynamic>> syncPremiumStatus(String clerkId) async {
+    final response = await _dio.post('/api/premium/sync/$clerkId');
+    return response.data;
+  }
+
+
+  
+  // ─── Update Quests & Data ─────────────────────────────
+  Future<Map<String, dynamic>> updatePlayerDataQuests() async {
+    final response = await _dio.post('/api/update-player-data-quests', data: {
+      'region': 'ap',
+      'platform': 'pc',
+      'mode': 'competitive',
+      'matches': 10,
+    });
     return response.data;
   }
 

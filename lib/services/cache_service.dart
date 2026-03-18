@@ -70,10 +70,14 @@ class CacheService {
   Future<void> saveRiotAuth({
     required String puuid,
     required String token,
+    String? name,
+    String? tag,
   }) async {
     await saveJson(riotAuthKey, {
       'puuid': puuid,
       'token': token,
+      'name': name,
+      'tag': tag,
       'linked_at': DateTime.now().toIso8601String(),
     });
   }
