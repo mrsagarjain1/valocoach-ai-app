@@ -294,19 +294,22 @@ class _AnalysisView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Flatten nested structure — API may return data under 'analysis' key
     final analysis = data['analysis'] as Map<String, dynamic>? ?? data;
 
-    final overallRating = analysis['overall_rating']?.toString();
-    final agentContext = analysis['agent_context']?.toString();
-    final archetype = analysis['player_archetype']?.toString();
-    final hiddenStrength = analysis['hidden_strength']?.toString();
-    final rankInsight = analysis['rank_unlock_insight']?.toString();
-    final tips = _parseTips(analysis['actionable_tips'] ?? analysis['tips']);
-    final quote = analysis['motivation_quote']?.toString() ?? analysis['motivation']?.toString();
-
-    // Performance fields (might be in 'performance_overview' or top level)
+    // Performance fields
     final perf = analysis['performance_overview'] as Map<String, dynamic>? ?? analysis;
+    final overallRating = perf['overall_rating']?.toString();
+    final agentContext = perf['agent_context']?.toString();
+    final combatConsistency = perf['acs_combat_consistency']?.toString();
+
+    // Deep dive fields
+    final deepDive = analysis['deep_dive_analysis'] as Map<String, dynamic>? ?? {};
+    final proficiency = deepDive['combat_proficiency']?.toString();
+    final tacticalAwareness = deepDive['tactical_economic_awareness']?.toString();
+
+    final recommendedAgent = analysis['recommended_agent_and_role']?.toString();
+    final quote = analysis['motivation_quote']?.toString() ?? analysis['motivation']?.toString();
+    final tips = _parseTipsObjects(analysis['actionable_tips'] ?? analysis['tips']);
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -333,16 +336,18 @@ class _AnalysisView extends StatelessWidget {
             _MiniStatCard(label: 'AVG ACS', value: perf['avg_acs']?.toString() ?? perf['overall_ACS']?.toString() ?? '-', color: AppTheme.primaryRed),
           ],
         ),
+        const SizedBox(height: 16),
+        if (recommendedAgent != null) _InfoCard(title: 'RECOMMENDED AGENT', body: recommendedAgent, color: const Color(0xFF38BDF8)),
+        if (agentContext != null) _InfoCard(title: 'AGENT CONTEXT', body: agentContext, color: const Color(0xFFB78BFA)),
+        if (combatConsistency != null) _InfoCard(title: 'COMBAT CONSISTENCY', body: combatConsistency, color: const Color(0xFF10B981)),
 
         const SizedBox(height: 32),
 
         // ── SECTION 2: DEEP DIVE ──
-        _SectionHeader(title: 'STRATEGIC DEEP DIVE', icon: Icons.psychology_outlined),
+        _SectionHeader(title: 'DEEP DIVE ANALYSIS', icon: Icons.psychology_outlined),
         const SizedBox(height: 16),
-        if (agentContext != null) _InfoCard(title: 'AGENT CONTEXT', body: agentContext, color: const Color(0xFFB78BFA)),
-        if (archetype != null) _InfoCard(title: 'PLAYER ARCHETYPE', body: archetype, color: AppTheme.accentBlue),
-        if (hiddenStrength != null) _InfoCard(title: 'HIDDEN STRENGTH', body: hiddenStrength, color: AppTheme.accentGreen),
-        if (rankInsight != null) _InfoCard(title: 'RANK INSIGHT', body: rankInsight, color: AppTheme.accentYellow),
+        if (proficiency != null) _InfoCard(title: 'COMBAT PROFICIENCY', body: proficiency, color: const Color(0xFFF43F5E)),
+        if (tacticalAwareness != null) _InfoCard(title: 'TACTICAL & ECONOMIC', body: tacticalAwareness, color: const Color(0xFFF59E0B)),
 
         const SizedBox(height: 32),
 
@@ -350,7 +355,7 @@ class _AnalysisView extends StatelessWidget {
         if (tips.isNotEmpty) ...[
           _SectionHeader(title: 'ACTIONABLE TIPS', icon: Icons.lightbulb_outline_rounded),
           const SizedBox(height: 16),
-          ...tips.map((tip) => _TipCard(tip: tip)),
+          ...tips.map((tip) => _StructTipCard(tip: tip)),
         ],
 
         const SizedBox(height: 32),
@@ -383,10 +388,25 @@ class _AnalysisView extends StatelessWidget {
     );
   }
 
-  List<String> _parseTips(dynamic val) {
+  List<Map<String, String>> _parseTipsObjects(dynamic val) {
     if (val == null) return [];
-    if (val is List) return val.map((e) => e.toString()).toList();
-    if (val is String) return [val];
+    if (val is List) {
+      return val.map((e) {
+        if (e is Map) {
+          return {
+            'number': e['tip_number']?.toString() ?? '',
+            'title': e['title']?.toString() ?? '',
+            'description': e['description']?.toString() ?? '',
+          };
+        } else {
+          return {
+            'number': '',
+            'title': 'Tip',
+            'description': e.toString(),
+          };
+        }
+      }).toList();
+    }
     return [];
   }
 }
@@ -492,6 +512,7 @@ class _InfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
+      width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppTheme.cardBg,
@@ -511,29 +532,38 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
-class _TipCard extends StatelessWidget {
-  final String tip;
-  const _TipCard({required this.tip});
+class _StructTipCard extends StatelessWidget {
+  final Map<String, String> tip;
+  const _StructTipCard({required this.tip});
 
   @override
   Widget build(BuildContext context) {
+    final hasNumber = tip['number']?.isNotEmpty == true;
+    final tipHeader = hasNumber ? 'TIP #${tip['number']}' : tip['title']!;
+    
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppTheme.surfaceDark,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.borderColor),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          margin: const EdgeInsets.only(top: 4),
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(color: const Color(0xFF7C3AED).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-          child: const Icon(Icons.check_circle_outline_rounded, color: Color(0xFFB78BFA), size: 14),
-        ),
-        const SizedBox(width: 14),
-        Expanded(child: Text(tip, style: AppTheme.inter(size: 13, height: 1.4, color: AppTheme.textPrimary))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(color: AppTheme.accentYellow.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+            child: Text(tipHeader, style: AppTheme.krona(size: 9, color: AppTheme.accentYellow, letterSpacing: 1.2)),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        if (hasNumber && tip['title']?.isNotEmpty == true)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Text(tip['title']!.toUpperCase(), style: AppTheme.krona(size: 11, color: Colors.white, letterSpacing: 0.5)),
+          ),
+        Text(tip['description']!, style: AppTheme.inter(size: 13, height: 1.5, color: AppTheme.textPrimary)),
       ]),
     );
   }
