@@ -62,8 +62,8 @@ class CacheService {
   static const String playerStatsKey = 'player_stats';
   static const String aiAnalysisKey = 'ai_analysis';
   static const String questsKey = 'quests';
-  static const String battlepassKey = 'battlepass';
   static const String riotAuthKey = 'riot_auth';
+  static const String lastLookupKey = 'last_lookup';
 
   // ─── Riot Auth Cache ──────────────────────────────────
 
@@ -88,5 +88,40 @@ class CacheService {
 
   Future<void> clearRiotAuth() async {
     await remove(riotAuthKey);
+  }
+
+  // ─── Search History Persistence ──────────────────────────
+
+  Future<void> addToSearchHistory(String name, String tag, String region) async {
+    final current = getSearchHistory();
+    final entry = {'name': name, 'tag': tag, 'region': region};
+    
+    // Remove if already exists (to push to top)
+    current.removeWhere((e) => e['name'] == name && e['tag'] == tag);
+    
+    // Insert at top
+    current.insert(0, entry);
+    
+    // Limit to 5
+    if (current.length > 5) {
+      current.removeLast();
+    }
+    
+    await _p.setString(lastLookupKey, jsonEncode(current));
+  }
+
+  List<Map<String, String>> getSearchHistory() {
+    final raw = _p.getString(lastLookupKey);
+    if (raw == null) return [];
+    try {
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      return decoded.map((e) => Map<String, String>.from(e as Map)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> clearSearchHistory() async {
+    await remove(lastLookupKey);
   }
 }

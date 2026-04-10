@@ -209,78 +209,134 @@ class _LoadingView extends StatelessWidget {
 
 // ─── Call to Action ───────────────────────────────────────────────────────────
 
-class _Cta extends StatelessWidget {
+class _Cta extends StatefulWidget {
   final String? error;
   final bool isRateLimit;
   final VoidCallback onAnalyze;
   final String playerName, playerTag;
-  const _Cta({this.error, required this.isRateLimit, required this.onAnalyze, required this.playerName, required this.playerTag});
+  const _Cta({super.key, this.error, required this.isRateLimit, required this.onAnalyze, required this.playerName, required this.playerTag});
+
+  @override
+  State<_Cta> createState() => _CtaState();
+}
+
+class _CtaState extends State<_Cta> with SingleTickerProviderStateMixin {
+  late AnimationController _pulse;
+  late Animation<double> _glow;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000))..repeat(reverse: true);
+    _glow = Tween<double>(begin: 0.15, end: 0.35).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          // Icon
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF1A0828), Color(0xFF28106A)]),
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.3), blurRadius: 30)],
-            ),
-            child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFB78BFA), size: 44),
-          ),
-          const SizedBox(height: 24),
-          Text('AI COACH', style: AppTheme.krona(size: 22, color: Colors.white)),
-          const SizedBox(height: 8),
-          Text(
-            'Get personalized analysis for\n$playerName#$playerTag',
-            textAlign: TextAlign.center,
-            style: AppTheme.inter(size: 13, color: AppTheme.textSecondary),
-          ),
-
-          if (error != null) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: (isRateLimit ? AppTheme.accentYellow : AppTheme.primaryRed).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: (isRateLimit ? AppTheme.accentYellow : AppTheme.primaryRed).withValues(alpha: 0.25)),
-              ),
-              child: Row(children: [
-                Icon(isRateLimit ? Icons.timer_outlined : Icons.error_outline, color: isRateLimit ? AppTheme.accentYellow : AppTheme.primaryRed, size: 18),
-                const SizedBox(width: 10),
-                Expanded(child: Text(isRateLimit ? 'Rate limit reached. Please wait a few minutes.' : error!, style: AppTheme.inter(size: 12, color: AppTheme.textSecondary))),
-              ]),
-            ),
-          ],
-
-          const SizedBox(height: 32),
-
-          GestureDetector(
-            onTap: isRateLimit ? null : onAnalyze,
-            child: AnimatedOpacity(
-              opacity: isRateLimit ? 0.4 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 40),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedBuilder(
+              animation: _glow,
+              builder: (_, child) => Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF5B21B6)]),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, 6))],
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0D0026), Color(0xFF1C0645), Color(0xFF2D1065)],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.45)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF7C3AED).withValues(alpha: _glow.value),
+                      blurRadius: 32, offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
-                  const SizedBox(width: 10),
-                  Text('ANALYZE NOW', style: AppTheme.krona(size: 13, letterSpacing: 1)),
+                child: Stack(clipBehavior: Clip.none, children: [
+                  Positioned(
+                    right: -20, top: -20,
+                    child: Container(width: 120, height: 120, decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF7C3AED).withValues(alpha: 0.15))),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFF1A0828), Color(0xFF28106A)]),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.3)),
+                          boxShadow: [
+                            BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.2), blurRadius: 20)
+                          ],
+                        ),
+                        child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFB78BFA), size: 48),
+                      ),
+                      const SizedBox(height: 32),
+                      Text('AI COACH REPORT', style: AppTheme.krona(size: 24, color: Colors.white, height: 1.2), textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      Text('Personalized insights for', style: AppTheme.inter(size: 14, color: AppTheme.textSecondary), textAlign: TextAlign.center),
+                      const SizedBox(height: 4),
+                      Text('${widget.playerName}#${widget.playerTag}', style: AppTheme.krona(size: 16, color: const Color(0xFFB78BFA)), textAlign: TextAlign.center),
+                      const SizedBox(height: 32),
+                      
+                      if (widget.error != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: (widget.isRateLimit ? AppTheme.accentYellow : AppTheme.primaryRed).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: (widget.isRateLimit ? AppTheme.accentYellow : AppTheme.primaryRed).withValues(alpha: 0.25)),
+                          ),
+                          child: Row(children: [
+                            Icon(widget.isRateLimit ? Icons.timer_outlined : Icons.error_outline, color: widget.isRateLimit ? AppTheme.accentYellow : AppTheme.primaryRed, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(widget.isRateLimit ? 'Rate limit reached. Please wait a few minutes.' : widget.error!, style: AppTheme.inter(size: 12, color: AppTheme.textSecondary))),
+                          ]),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+                      
+                      GestureDetector(
+                        onTap: widget.isRateLimit ? null : widget.onAnalyze,
+                        child: AnimatedOpacity(
+                          opacity: widget.isRateLimit ? 0.4 : 1.0,
+                          duration: const Duration(milliseconds: 200),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)]),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.5), blurRadius: 20, offset: const Offset(0, 6))],
+                            ),
+                            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
+                              const SizedBox(width: 12),
+                              Text('GENERATE FULL ANALYSIS', style: AppTheme.krona(size: 12, color: Colors.white, letterSpacing: 1)),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ]),
               ),
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }
@@ -315,39 +371,89 @@ class _AnalysisView extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        
+        // ── SECTION 0: MOTIVATION QUOTE (Moved to top) ──
+        if (quote != null && quote.isNotEmpty) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF2A0800), Color(0xFF4A0E00)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.primaryRed.withValues(alpha: 0.3)),
+              boxShadow: [
+                 BoxShadow(color: AppTheme.primaryRed.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(0, 8)),
+              ],
+            ),
+            child: Column(children: [
+              const Icon(Icons.format_quote_rounded, color: AppTheme.primaryRed, size: 32),
+              const SizedBox(height: 12),
+              Text(
+                quote,
+                textAlign: TextAlign.center,
+                style: AppTheme.krona(size: 12, height: 1.6, color: Colors.white.withValues(alpha: 0.9)),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 32),
+        ],
+
         // ── SECTION 1: PERFORMANCE OVERVIEW ──
         _SectionHeader(title: 'PERFORMANCE OVERVIEW', icon: Icons.analytics_outlined),
         const SizedBox(height: 16),
-        if (overallRating != null) ...[
+        if (overallRating != null && overallRating.isNotEmpty) ...[
           _RatingCard(rating: overallRating),
           const SizedBox(height: 16),
         ],
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          childAspectRatio: 2.2,
-          children: [
-            _MiniStatCard(label: 'K/D RATIO', value: perf['kd_ratio']?.toString() ?? perf['overall_kd_ratio']?.toString() ?? '-', color: AppTheme.accentGreen),
-            _MiniStatCard(label: 'WIN RATE', value: perf['win_rate']?.toString() ?? perf['overall_win_percent']?.toString() ?? '-', color: AppTheme.accentBlue),
-            _MiniStatCard(label: 'HEADSHOT %', value: perf['headshot_pct']?.toString() ?? perf['overall_headshot_percentage']?.toString() ?? '-', color: AppTheme.accentYellow),
-            _MiniStatCard(label: 'AVG ACS', value: perf['avg_acs']?.toString() ?? perf['overall_ACS']?.toString() ?? '-', color: AppTheme.primaryRed),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (recommendedAgent != null) _InfoCard(title: 'RECOMMENDED AGENT', body: recommendedAgent, color: const Color(0xFF38BDF8)),
-        if (agentContext != null) _InfoCard(title: 'AGENT CONTEXT', body: agentContext, color: const Color(0xFFB78BFA)),
-        if (combatConsistency != null) _InfoCard(title: 'COMBAT CONSISTENCY', body: combatConsistency, color: const Color(0xFF10B981)),
+        
+        if (recommendedAgent != null && recommendedAgent.isNotEmpty) 
+          _InfoCard(
+            title: 'RECOMMENDED AGENT', 
+            body: recommendedAgent, 
+            accentColor: const Color(0xFF38BDF8),
+            gradient: const LinearGradient(colors: [Color(0xFF0C4A6E), Color(0xFF0369A1)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          ),
+        
+        if (agentContext != null && agentContext.isNotEmpty) 
+          _InfoCard(
+            title: 'AGENT CONTEXT', 
+            body: agentContext, 
+            accentColor: const Color(0xFFB78BFA),
+            gradient: const LinearGradient(colors: [Color(0xFF1E1B4B), Color(0xFF312E81)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          ),
+          
+        if (combatConsistency != null && combatConsistency.isNotEmpty) 
+          _InfoCard(
+            title: 'COMBAT CONSISTENCY', 
+            body: combatConsistency, 
+            accentColor: const Color(0xFF10B981),
+            gradient: const LinearGradient(colors: [Color(0xFF064E3B), Color(0xFF065F46)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          ),
 
         const SizedBox(height: 32),
 
         // ── SECTION 2: DEEP DIVE ──
         _SectionHeader(title: 'DEEP DIVE ANALYSIS', icon: Icons.psychology_outlined),
         const SizedBox(height: 16),
-        if (proficiency != null) _InfoCard(title: 'COMBAT PROFICIENCY', body: proficiency, color: const Color(0xFFF43F5E)),
-        if (tacticalAwareness != null) _InfoCard(title: 'TACTICAL & ECONOMIC', body: tacticalAwareness, color: const Color(0xFFF59E0B)),
+        if (proficiency != null && proficiency.isNotEmpty) 
+          _InfoCard(
+            title: 'COMBAT PROFICIENCY', 
+            body: proficiency, 
+            accentColor: const Color(0xFFF43F5E),
+            gradient: const LinearGradient(colors: [Color(0xFF4C0519), Color(0xFF881337)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          ),
+          
+        if (tacticalAwareness != null && tacticalAwareness.isNotEmpty) 
+          _InfoCard(
+            title: 'TACTICAL & ECONOMIC', 
+            body: tacticalAwareness, 
+            accentColor: const Color(0xFFFBBF24),
+            gradient: const LinearGradient(colors: [Color(0xFF78350F), Color(0xFF92400E)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          ),
 
         const SizedBox(height: 32),
 
@@ -358,32 +464,7 @@ class _AnalysisView extends StatelessWidget {
           ...tips.map((tip) => _StructTipCard(tip: tip)),
         ],
 
-        const SizedBox(height: 32),
-
-        // ── SECTION 4: MOTIVATION ──
-        if (quote != null) ...[
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryRed.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppTheme.primaryRed.withValues(alpha: 0.1)),
-            ),
-            child: Column(children: [
-              const Icon(Icons.format_quote_rounded, color: AppTheme.primaryRed, size: 32),
-              const SizedBox(height: 12),
-              Text(
-                quote,
-                textAlign: TextAlign.center,
-                style: AppTheme.krona(size: 13, height: 1.6, color: Colors.white.withValues(alpha: 0.9)),
-              ),
-              const SizedBox(height: 12),
-              Container(width: 40, height: 2, color: AppTheme.primaryRed.withValues(alpha: 0.3)),
-            ]),
-          ),
-        ],
-
-        const SizedBox(height: 60),
+        const SizedBox(height: 40),
       ]),
     );
   }
@@ -426,39 +507,14 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _MiniStatCard extends StatelessWidget {
-  final String label, value;
-  final Color color;
-  const _MiniStatCard({required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.cardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(label, style: AppTheme.inter(size: 8, color: AppTheme.textMuted, weight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(value, style: AppTheme.krona(size: 14, color: color)),
-        ],
-      ),
-    );
-  }
-}
-
 class _RatingCard extends StatelessWidget {
   final String rating;
   const _RatingCard({required this.rating});
 
   @override
   Widget build(BuildContext context) {
+    final isNumeric = rating.length <= 5 && double.tryParse(rating.replaceAll(RegExp(r'[^0-9.]'), '')) != null;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -474,30 +530,37 @@ class _RatingCard extends StatelessWidget {
           BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(0, 8)),
         ],
       ),
-      child: Column(children: [
-        Text('PERFORMANCE RATING', style: AppTheme.krona(size: 9, color: const Color(0xFFB78BFA), letterSpacing: 1.5)),
-        const SizedBox(height: 12),
-        Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(rating, style: AppTheme.krona(size: 48, color: Colors.white)),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8, left: 4),
-            child: Text('/ 10', style: AppTheme.krona(size: 16, color: Colors.white54)),
-          ),
-        ]),
-        const SizedBox(height: 8),
-        Container(
-          width: 100,
-          height: 4,
-          decoration: BoxDecoration(
-            color: Colors.white10,
-            borderRadius: BorderRadius.circular(2),
-          ),
-          child: FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: (double.tryParse(rating) ?? 0) / 10,
-            child: Container(decoration: BoxDecoration(color: const Color(0xFFB78BFA), borderRadius: BorderRadius.circular(2))),
-          ),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('PERFORMANCE RATING', style: AppTheme.krona(size: 9, color: const Color(0xFFB78BFA), letterSpacing: 1.5)),
+          const SizedBox(height: 12),
+          
+          if (isNumeric) ...[
+            Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(rating, style: AppTheme.krona(size: 40, color: Colors.white)),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6, left: 4),
+                child: Text('/ 10', style: AppTheme.krona(size: 14, color: Colors.white54)),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 120,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(2)),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: ((double.tryParse(rating) ?? 0) / 10).clamp(0.0, 1.0),
+                  child: Container(decoration: BoxDecoration(color: const Color(0xFFB78BFA), borderRadius: BorderRadius.circular(2))),
+                ),
+              ),
+            ),
+          ] else ...[
+             // Safe wrapping for textual descriptions
+            Text(rating, style: AppTheme.inter(size: 14, height: 1.5, color: Colors.white)),
+          ]
       ]),
     );
   }
@@ -505,28 +568,32 @@ class _RatingCard extends StatelessWidget {
 
 class _InfoCard extends StatelessWidget {
   final String title, body;
-  final Color color;
-  const _InfoCard({required this.title, required this.body, required this.color});
+  final LinearGradient gradient;
+  final Color accentColor;
+  const _InfoCard({required this.title, required this.body, required this.gradient, required this.accentColor});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        gradient: gradient,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.borderColor),
+        border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(color: accentColor.withValues(alpha: 0.15), blurRadius: 15, offset: const Offset(0, 6)),
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle)),
           const SizedBox(width: 10),
-          Text(title, style: AppTheme.krona(size: 9, color: color, letterSpacing: 1.5)),
+          Expanded(child: Text(title, style: AppTheme.krona(size: 9, color: accentColor, letterSpacing: 1.5))),
         ]),
         const SizedBox(height: 12),
-        Text(body, style: AppTheme.inter(size: 13, height: 1.5, color: AppTheme.textSecondary)),
+        Text(body, style: AppTheme.inter(size: 14, height: 1.5, color: Colors.white.withValues(alpha: 0.95))),
       ]),
     );
   }
@@ -545,9 +612,16 @@ class _StructTipCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceDark,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF27272A), Color(0xFF18181B)], 
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderColor),
+        border: Border.all(color: AppTheme.accentYellow.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(color: AppTheme.accentYellow.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -563,7 +637,7 @@ class _StructTipCard extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Text(tip['title']!.toUpperCase(), style: AppTheme.krona(size: 11, color: Colors.white, letterSpacing: 0.5)),
           ),
-        Text(tip['description']!, style: AppTheme.inter(size: 13, height: 1.5, color: AppTheme.textPrimary)),
+        Text(tip['description']!, style: AppTheme.inter(size: 14, height: 1.5, color: AppTheme.textPrimary)),
       ]),
     );
   }

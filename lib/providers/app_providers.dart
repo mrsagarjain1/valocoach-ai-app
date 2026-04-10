@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
+
+
 import '../services/api_service.dart';
 import '../services/cache_service.dart';
 
@@ -15,7 +17,12 @@ class AuthState {
   final bool isRiotLinked;
   final String? riotPuuid;
   final String? riotToken;
+  final String? riotName;
+  final String? riotTag;
   final bool isPremium;
+  final int? daysRemaining;
+  final DateTime? subscriptionEnd;
+  final bool isSyncing; // true while checkUserAuth / premium sync is in flight
 
   const AuthState({
     this.isClerkSignedIn = false,
@@ -23,7 +30,12 @@ class AuthState {
     this.isRiotLinked = false,
     this.riotPuuid,
     this.riotToken,
+    this.riotName,
+    this.riotTag,
     this.isPremium = false,
+    this.daysRemaining,
+    this.subscriptionEnd,
+    this.isSyncing = false,
   });
 
   AuthState copyWith({
@@ -32,7 +44,12 @@ class AuthState {
     bool? isRiotLinked,
     String? riotPuuid,
     String? riotToken,
+    String? riotName,
+    String? riotTag,
     bool? isPremium,
+    int? daysRemaining,
+    DateTime? subscriptionEnd,
+    bool? isSyncing,
   }) {
     return AuthState(
       isClerkSignedIn: isClerkSignedIn ?? this.isClerkSignedIn,
@@ -40,7 +57,12 @@ class AuthState {
       isRiotLinked: isRiotLinked ?? this.isRiotLinked,
       riotPuuid: riotPuuid ?? this.riotPuuid,
       riotToken: riotToken ?? this.riotToken,
+      riotName: riotName ?? this.riotName,
+      riotTag: riotTag ?? this.riotTag,
       isPremium: isPremium ?? this.isPremium,
+      daysRemaining: daysRemaining ?? this.daysRemaining,
+      subscriptionEnd: subscriptionEnd ?? this.subscriptionEnd,
+      isSyncing: isSyncing ?? this.isSyncing,
     );
   }
 }
@@ -60,67 +82,151 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isRiotLinked: true,
         riotPuuid: cached['puuid'],
         riotToken: cached['token'],
+        riotName: cached['name'],
+        riotTag: cached['tag'],
       );
     }
   }
 
+  /// Called by _AuthBridge in main.dart when Clerk reports a signed-in user.
+  /// Syncs the Clerk user ID to both the ApiService interceptor (which auto-
+  /// attaches it as X-Clerk-User-Id header) and the local Riverpod state, then
+  /// fires the full backend sync in the background.
   void setClerkUser(String userId) {
     _api.setClerkUserId(userId);
-    state = state.copyWith(isClerkSignedIn: true, clerkUserId: userId);
-    _syncAuthData(userId);
+    state = state.copyWith(
+      isClerkSignedIn: true,
+      clerkUserId: userId,
+      isSyncing: true,
+    );
+    _onboardAndSync(userId);
   }
 
-  Future<void> _syncAuthData(String clerkId) async {
+  /// 1. Call check-user-auth to fetch Riot linkage + premium status.
+  /// 2. Sync premium status.
+  Future<void> _onboardAndSync(String clerkId) async {
+
+    // Check auth & riot linkage
     try {
       final res = await _api.checkUserAuth(clerkId);
-      final isLinked = res['is_linked'] == true || res['puuid'] != null || res['riot_puuid'] != null;
-      final puuid = res['puuid']?.toString() ?? res['riot_puuid']?.toString();
-      final name = res['name']?.toString() ?? res['riot_name']?.toString();
-      final tag = res['tag']?.toString() ?? res['riot_tag']?.toString();
+      final isLinked = res['exists'] == true || 
+                       res['player_puuid'] != null || 
+                       res['riot_puuid'] != null ||
+                       res['puuid'] != null;
       
+      final puuid = res['player_puuid']?.toString() ?? 
+                    res['riot_puuid']?.toString() ?? 
+                    res['puuid']?.toString();
+      
+      final token = res['riot_token']?.toString() ?? res['token']?.toString();
+      final name = res['riot_name']?.toString() ?? res['name']?.toString();
+      final tag = res['riot_tag']?.toString() ?? res['tag']?.toString();
+      final isPrem = (res['is_premium'] == true || res['premium'] == true);
+
       state = state.copyWith(
-        isRiotLinked: isLinked || state.isRiotLinked,
+        isRiotLinked: isLinked,
         riotPuuid: puuid ?? state.riotPuuid,
+        riotToken: token ?? state.riotToken,
+        riotName: name ?? state.riotName,
+        riotTag: tag ?? state.riotTag,
+        isPremium: isPrem,
+        daysRemaining: res['days_remaining'] != null ? int.tryParse(res['days_remaining'].toString()) : null,
+        subscriptionEnd: res['subscription_end'] != null ? DateTime.tryParse(res['subscription_end'].toString()) : null,
       );
 
+      // Persist the backend-provided auth data to local cache for session stability
       if (isLinked && puuid != null) {
-        // Just save what we know
         await _cache.saveRiotAuth(
-          puuid: puuid, 
-          token: state.riotToken ?? '',
-          name: name,
-          tag: tag,
+          puuid: puuid,
+          token: token ?? state.riotToken ?? '',
+          name: name ?? state.riotName,
+          tag: tag ?? state.riotTag,
         );
       }
     } catch (e) {
-      debugPrint('Failed to sync riot auth: $e');
+      debugPrint('[Auth] checkUserAuth failed: $e');
     }
-    
-    // Also sync premium status
-    await checkPremiumStatus(clerkId);
+
+    // Dedicated premium sync
+    await refreshPremium();
+
+    state = state.copyWith(isSyncing: false);
+  }
+
+  Future<void> linkRiot({
+    required String puuid,
+    required String token,
+    String? name,
+    String? tag,
+  }) async {
+    if (state.clerkUserId == null) return;
+
+    try {
+      // 1. Tell backend to link it permanently (via onboarding)
+      await _api.onboardUser(
+        clerkId: state.clerkUserId!,
+        puuid: puuid,
+        token: token,
+        region: 'ap', // Default to Asia Pacific
+      );
+
+      // 2. Persist locally
+      await _cache.saveRiotAuth(
+        puuid: puuid,
+        token: token,
+        name: name,
+        tag: tag,
+      );
+
+      // 3. Update state
+      state = state.copyWith(
+        isRiotLinked: true,
+        riotPuuid: puuid,
+        riotToken: token,
+        riotName: name,
+        riotTag: tag,
+      );
+    } catch (e) {
+      debugPrint('[Auth] linkRiot failed: $e');
+      rethrow;
+    }
   }
 
   void clearClerkUser() {
     _api.setClerkUserId(null);
-    state = state.copyWith(isClerkSignedIn: false, clerkUserId: null);
+    state = state.copyWith(
+      isClerkSignedIn: false,
+      clerkUserId: null,
+      isSyncing: false,
+    );
   }
 
-  Future<void> linkRiotAccount(String puuid, String token) async {
-    await _cache.saveRiotAuth(puuid: puuid, token: token);
+  Future<void> linkRiotAccount(String puuid, String token, {String? name, String? tag}) async {
+    await _cache.saveRiotAuth(puuid: puuid, token: token, name: name, tag: tag);
     state = state.copyWith(
       isRiotLinked: true,
       riotPuuid: puuid,
       riotToken: token,
+      riotName: name,
+      riotTag: tag,
     );
   }
 
-  Future<void> checkPremiumStatus(String clerkId) async {
+  /// Re-fetches premium status from backend.  Call this after a successful
+  /// Razorpay payment to immediately reflect the new status.
+  Future<void> refreshPremium() async {
+    final clerkId = state.clerkUserId;
+    if (clerkId == null) return;
     try {
       final res = await _api.syncPremiumStatus(clerkId);
-      final isPrem = res['is_premium'] == true;
-      state = state.copyWith(isPremium: isPrem);
+      final isPrem = (res['is_premium'] == true || res['premium'] == true);
+      state = state.copyWith(
+        isPremium: isPrem,
+        daysRemaining: res['days_remaining'] != null ? int.tryParse(res['days_remaining'].toString()) : null,
+        subscriptionEnd: res['subscription_end'] != null ? DateTime.tryParse(res['subscription_end'].toString()) : null,
+      );
     } catch (e) {
-      debugPrint('Failed to sync premium: $e');
+      debugPrint('[Auth] refreshPremium failed: $e');
     }
   }
 
@@ -130,6 +236,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       isRiotLinked: false,
       riotPuuid: null,
       riotToken: null,
+      riotName: null,
+      riotTag: null,
     );
   }
 
@@ -339,6 +447,71 @@ final matchAnalysisProvider = StateNotifierProvider<MatchAnalysisNotifier, Match
   return MatchAnalysisNotifier(ref.watch(apiServiceProvider));
 });
 
+// ─── Per-Match AI Analysis State ────────────────────────
+class PerMatchAnalysisState {
+  final bool isLoading;
+  final Map<String, dynamic>? data;
+  final String? error;
+
+  const PerMatchAnalysisState({
+    this.isLoading = false,
+    this.data,
+    this.error,
+  });
+
+  PerMatchAnalysisState copyWith({
+    bool? isLoading,
+    Map<String, dynamic>? data,
+    String? error,
+  }) {
+    return PerMatchAnalysisState(
+      isLoading: isLoading ?? this.isLoading,
+      data: data ?? this.data,
+      error: error,
+    );
+  }
+}
+
+class PerMatchAnalysisNotifier extends StateNotifier<PerMatchAnalysisState> {
+  final ApiService _api;
+  final CacheService _cache;
+  final String matchId;
+
+  PerMatchAnalysisNotifier(this._api, this._cache, this.matchId) : super(const PerMatchAnalysisState());
+
+  Future<void> fetchAnalysis() async {
+    final cacheKey = 'match_analysis_$matchId';
+    
+    // 1. Check Cache
+    final cached = _cache.getJson(cacheKey);
+    if (cached != null) {
+      state = state.copyWith(data: cached, isLoading: false, error: null);
+      return;
+    }
+
+    // 2. Fetch from API
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final res = await _api.getMatchAnalysis(matchId);
+      
+      // 3. Save to Cache
+      await _cache.saveJson(cacheKey, res);
+      
+      state = state.copyWith(isLoading: false, data: res);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+}
+
+final perMatchAnalysisProvider = StateNotifierProvider.family<PerMatchAnalysisNotifier, PerMatchAnalysisState, String>((ref, matchId) {
+  return PerMatchAnalysisNotifier(
+    ref.watch(apiServiceProvider), 
+    ref.watch(cacheServiceProvider),
+    matchId,
+  );
+});
+
 // ─── Battlepass State ────────────────────────────────────────────────────────
 
 class BattlepassState {
@@ -349,6 +522,7 @@ class BattlepassState {
   final List<dynamic> weeklyQuests;
   final List<dynamic> seasonalQuests;
   final List<dynamic> leaderboard;
+  final int totalPlayers;
 
   const BattlepassState({
     this.isLoading = false,
@@ -358,6 +532,7 @@ class BattlepassState {
     this.weeklyQuests = const [],
     this.seasonalQuests = const [],
     this.leaderboard = const [],
+    this.totalPlayers = 0,
   });
 
   BattlepassState copyWith({
@@ -368,6 +543,7 @@ class BattlepassState {
     List<dynamic>? weeklyQuests,
     List<dynamic>? seasonalQuests,
     List<dynamic>? leaderboard,
+    int? totalPlayers,
   }) {
     return BattlepassState(
       isLoading: isLoading ?? this.isLoading,
@@ -377,6 +553,7 @@ class BattlepassState {
       weeklyQuests: weeklyQuests ?? this.weeklyQuests,
       seasonalQuests: seasonalQuests ?? this.seasonalQuests,
       leaderboard: leaderboard ?? this.leaderboard,
+      totalPlayers: totalPlayers ?? this.totalPlayers,
     );
   }
 }
@@ -406,14 +583,17 @@ class BattlepassNotifier extends StateNotifier<BattlepassState> {
       final lbData = results[2];
 
       final quests = questsData['quests'] as List? ?? [];
-      
+      final leaderboard = lbData['leaderboard'] as List? ?? [];
+      final totalPlayers = lbData['total_players'] as int? ?? leaderboard.length;
+
       state = state.copyWith(
         isLoading: false,
         battlepass: bpData,
         dailyQuests: quests.where((q) => q['quest_type'] == 'daily').toList(),
         weeklyQuests: quests.where((q) => q['quest_type'] == 'weekly').toList(),
         seasonalQuests: quests.where((q) => q['quest_type'] == 'seasonal').toList(),
-        leaderboard: lbData['leaderboard'] as List? ?? [],
+        leaderboard: leaderboard,
+        totalPlayers: totalPlayers,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());

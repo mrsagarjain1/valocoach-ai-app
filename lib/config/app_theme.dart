@@ -16,6 +16,9 @@ class AppTheme {
   static const Color accentGreen   = Color(0xFF21D17F);
   static const Color accentYellow  = Color(0xFFFFD740);
   static const Color accentBlue    = Color(0xFF448AFF);
+  static const Color accentCyan    = Color(0xFF00E5FF);
+  static const Color accentSilver  = Color(0xFFC0C0C0);
+  static const Color accentBronze  = Color(0xFFCD7F32);
   static const Color borderColor   = Color(0xFF232336);
   static const Color shimmerBase      = Color(0xFF181824);
   static const Color shimmerHighlight = Color(0xFF232336);
@@ -53,6 +56,7 @@ class AppTheme {
     double size = 14,
     Color color = textPrimary,
     FontWeight weight = FontWeight.w400,
+    FontStyle? fontStyle,
     double? letterSpacing,
     double? height,
   }) =>
@@ -60,6 +64,7 @@ class AppTheme {
         fontSize: size,
         color: color,
         fontWeight: weight,
+        fontStyle: fontStyle,
         letterSpacing: letterSpacing,
         height: height,
       );

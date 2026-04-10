@@ -4,6 +4,7 @@ import 'package:shimmer/shimmer.dart';
 import '../config/app_theme.dart';
 import '../providers/app_providers.dart';
 import 'ai_analysis_screen.dart';
+import 'matches_history_screen.dart';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -202,7 +203,7 @@ class _StatsBody extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppTheme.darkBg,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppTheme.darkBg,
         elevation: 0,
         centerTitle: true,
         title: Text('STATISTICS & AI COACH', style: AppTheme.krona(size: 14, letterSpacing: 1.5)),
@@ -211,9 +212,9 @@ class _StatsBody extends ConsumerWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       body: SafeArea(
-        top: false,
+        top: true,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Column(
@@ -296,8 +297,48 @@ class _StatsBody extends ConsumerWidget {
                           child: Text('No matches available', style: AppTheme.inter(color: AppTheme.textMuted)),
                         ),
                       )
-                    else
-                      _MatchListExpander(matches: matches, rank: rank),
+                    else ...[
+                      ...matches.take(5).map((m) => _MatchCard(match: m as Map<String, dynamic>, rank: rank)),
+                      if (matches.length > 5) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MatchesHistoryScreen(
+                                    matches: matches,
+                                    rank: rank,
+                                    playerData: data,
+                                  ),
+                                ),
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              backgroundColor: AppTheme.cardBg,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(color: AppTheme.borderColor),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.history_rounded, size: 18, color: AppTheme.textMuted),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'VIEW FULL MATCH HISTORY',
+                                  style: AppTheme.krona(size: 10, color: AppTheme.textMuted, letterSpacing: 1.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
 
                     const SizedBox(height: 40),
                   ],
@@ -315,22 +356,28 @@ class _StatsBody extends ConsumerWidget {
 
 class _PlayerHero extends StatelessWidget {
   final String name, tag, rank, peakRank, topAgent, playerCard;
-  const _PlayerHero({required this.name, required this.tag, required this.rank, required this.peakRank, required this.topAgent, required this.playerCard});
+  const _PlayerHero({
+    required this.name,
+    required this.tag,
+    required this.rank,
+    required this.peakRank,
+    required this.topAgent,
+    required this.playerCard,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: 230,
       color: const Color(0xFF120010),
       child: Stack(
         children: [
-          // Map/gradient bg
+          // Gradient background
           Positioned.fill(
             child: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFF1E0016), Color(0xFF1A001A), Color(0xFF120010)],
+                  colors: [Color(0xFF1E0016), Color(0xFF1A001A), Color(0xFF0D0D12)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -338,29 +385,38 @@ class _PlayerHero extends StatelessWidget {
             ),
           ),
 
-          // Subtle grid
+          // Grid overlay
           Positioned.fill(child: CustomPaint(painter: _HeroGridPainter())),
 
-          // Agent cutout — large, right side, constrained width
+          // Agent art — right side, contained
           if (topAgent.isNotEmpty)
             Positioned(
               right: 0,
               bottom: 0,
-              top: -10,
-              child: SizedBox(
-                width: 140, // Constrain width to prevent overflow with peak rank text
+              top: 0,
+              width: 150,
+              child: ShaderMask(
+                shaderCallback: (rect) => const LinearGradient(
+                  colors: [Colors.transparent, Colors.white, Colors.white],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  stops: [0.0, 0.3, 1.0],
+                ).createShader(rect),
+                blendMode: BlendMode.dstIn,
                 child: Image.asset(
                   _agentAsset(topAgent),
-                  fit: BoxFit.contain,
-                  alignment: Alignment.bottomRight,
-                  errorBuilder: (context, error, stackTrace) => const SizedBox(),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topRight,
+                  errorBuilder: (_, __, ___) => const SizedBox(),
                 ),
               ),
             ),
 
           // Left red accent bar
           Positioned(
-            left: 0, top: 0, bottom: 0,
+            left: 0,
+            top: 0,
+            bottom: 0,
             child: Container(
               width: 3,
               decoration: BoxDecoration(
@@ -373,47 +429,65 @@ class _PlayerHero extends StatelessWidget {
             ),
           ),
 
-          // Content
+          // Content — right padding leaves room for agent image
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 80, 160, 20),
+            padding: const EdgeInsets.fromLTRB(20, 24, 160, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Player Card + name
+                // Avatar + name row
                 Row(children: [
-                   Container(
-                    width: 60,
-                    height: 60,
+                  Container(
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
-                      color: AppTheme.darkBg.withValues(alpha: 0.5),
+                      color: AppTheme.darkBg.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppTheme.primaryRed.withValues(alpha: 0.5)),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: playerCard.isNotEmpty 
-                      ? Image.network(playerCard, fit: BoxFit.cover, 
-                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.white24, size: 30))
-                      : const Icon(Icons.person, color: Colors.white24, size: 30),
+                    child: playerCard.isNotEmpty
+                        ? Image.network(
+                            playerCard,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.person, color: Colors.white24, size: 36),
+                          )
+                        : const Icon(Icons.person, color: Colors.white24, size: 36),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start, 
-                      children: [
-                        Text(name.toUpperCase(), style: AppTheme.krona(size: 18), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        if (tag.isNotEmpty)
-                          Text('#$tag', style: AppTheme.inter(size: 13, color: AppTheme.textMuted, weight: FontWeight.w700)),
-                      ],
-                    ),
-                  ),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name.toUpperCase(),
+                        style: AppTheme.krona(size: 17),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (tag.isNotEmpty)
+                        Text(
+                          '#$tag',
+                          style: AppTheme.inter(size: 12, color: AppTheme.textMuted, weight: FontWeight.w700),
+                        ),
+                    ],
+                  )),
                 ]),
-                const Spacer(),
-                // Rank chips
-                Column(children: [
-                  _RankBadge(label: 'CURRENT', value: rank, color: AppTheme.primaryRed, iconAsset: _rankAsset(rank)),
-                  const SizedBox(height: 8),
-                  _RankBadge(label: 'PEAK', value: peakRank, color: AppTheme.accentYellow, iconAsset: _rankAsset(peakRank)),
+                const SizedBox(height: 16),
+                // Rank badges — horizontal
+                Wrap(spacing: 8, runSpacing: 6, children: [
+                  _RankBadge(
+                    label: 'CURRENT',
+                    value: rank,
+                    color: AppTheme.primaryRed,
+                    iconAsset: _rankAsset(rank),
+                  ),
+                  _RankBadge(
+                    label: 'PEAK',
+                    value: peakRank,
+                    color: AppTheme.accentYellow,
+                    iconAsset: _rankAsset(peakRank),
+                  ),
                 ]),
               ],
             ),
@@ -566,68 +640,207 @@ class _MapChip extends StatelessWidget {
   }
 }
 
-// ─── AI CTA ───────────────────────────────────────────────────────────────────
+// --- AI CTA -------------------------------------------------------------------
 
-class _AiCta extends ConsumerWidget {
+class _AiCta extends ConsumerStatefulWidget {
   final String name, tag, region;
   const _AiCta({required this.name, required this.tag, required this.region});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authProvider);
+  ConsumerState<_AiCta> createState() => _AiCtaState();
+}
 
+class _AiCtaState extends ConsumerState<_AiCta>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulse;
+  late Animation<double> _glow;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+    _glow = Tween<double>(begin: 0.15, end: 0.35)
+        .animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = ref.watch(authProvider);
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => AiAnalysisScreen(
-            playerName: name, 
-            playerTag: tag,
-            region: region,
-          ),
-        ));
-      },
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1A0828), Color(0xFF28106A)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.35)),
-          boxShadow: [
-            BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.12), blurRadius: 20, offset: const Offset(0, 4)),
-          ],
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => AiAnalysisScreen(
+          playerName: widget.name,
+          playerTag: widget.tag,
+          region: widget.region,
         ),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF7C3AED).withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(12),
+      )),
+      child: AnimatedBuilder(
+        animation: _glow,
+        builder: (_, __) => Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0D0026), Color(0xFF1C0645), Color(0xFF2D1065)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFB78BFA), size: 24),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.45)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF7C3AED).withValues(alpha: _glow.value),
+                blurRadius: 28,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('AI COACH ANALYSIS', style: AppTheme.krona(size: 12, color: Colors.white, letterSpacing: 0.5)),
-            const SizedBox(height: 3),
-            Text(
-              auth.isClerkSignedIn ? 'Tap to get personalized coaching tips' : 'Sign in for personalized analysis',
-              style: AppTheme.inter(size: 11, color: Colors.white60),
+          child: Stack(children: [
+            // Glow orbs
+            Positioned(
+              right: -30, top: -30,
+              child: Container(
+                width: 180, height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                ),
+              ),
             ),
-          ])),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF7C3AED),
-              borderRadius: BorderRadius.circular(8),
+            Positioned(
+              left: -20, bottom: -20,
+              child: Container(
+                width: 100, height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF4F46E5).withValues(alpha: 0.08),
+                ),
+              ),
             ),
-            child: Text('ANALYZE', style: AppTheme.krona(size: 9, color: Colors.white, letterSpacing: 1)),
-          ),
-        ]),
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // Badge row
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7C3AED).withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: const Color(0xFF7C3AED).withValues(alpha: 0.4)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Container(
+                        width: 6, height: 6,
+                        decoration: const BoxDecoration(
+                            color: Color(0xFFB78BFA), shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 6),
+                      Text('AI POWERED',
+                          style: AppTheme.inter(
+                              size: 9,
+                              color: const Color(0xFFB78BFA),
+                              weight: FontWeight.w800,
+                              letterSpacing: 0.8)),
+                    ]),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7C3AED).withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded,
+                        color: Color(0xFFB78BFA), size: 22),
+                  ),
+                ]),
+                const SizedBox(height: 20),
+                // Headline
+                Text(
+                  'GET YOUR\nAI COACH REPORT',
+                  style: AppTheme.krona(size: 26, color: Colors.white, height: 1.1),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  auth.isClerkSignedIn
+                      ? 'Personalized insights for ${widget.name}#${widget.tag} to rank up'
+                      : 'Sign in for a personalized breakdown of your gameplay',
+                  style: AppTheme.inter(
+                      size: 12, color: Colors.white.withValues(alpha: 0.6)),
+                ),
+                const SizedBox(height: 18),
+                // Feature pills
+                Wrap(spacing: 8, runSpacing: 8, children: const [
+                  _Pill('Aim Analysis'),
+                  _Pill('Economy'),
+                  _Pill('Rank Tips'),
+                  _Pill('Tactics'),
+                ]),
+                const SizedBox(height: 22),
+                // Full-width CTA button
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                          color: const Color(0xFF7C3AED).withValues(alpha: 0.45),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6)),
+                    ],
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    const Icon(Icons.auto_awesome_rounded,
+                        color: Colors.white, size: 18),
+                    const SizedBox(width: 10),
+                    Text('ANALYZE MY GAMEPLAY',
+                        style: AppTheme.krona(
+                            size: 12, color: Colors.white, letterSpacing: 0.5)),
+                    const SizedBox(width: 10),
+                    const Icon(Icons.arrow_forward_rounded,
+                        color: Colors.white, size: 16),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
       ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final String label;
+  const _Pill(this.label);
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.25)),
+      ),
+      child: Text(label,
+          style: AppTheme.inter(
+              size: 10, color: const Color(0xFFB78BFA), weight: FontWeight.w600)),
     );
   }
 }
@@ -752,70 +965,6 @@ class _MatchCard extends StatelessWidget {
     );
   }
 }
-
-// ─── Match List Expander ──────────────────────────────────────────────────────
-
-class _MatchListExpander extends StatefulWidget {
-  final List<dynamic> matches;
-  final String rank;
-
-  const _MatchListExpander({required this.matches, required this.rank});
-
-  @override
-  State<_MatchListExpander> createState() => _MatchListExpanderState();
-}
-
-class _MatchListExpanderState extends State<_MatchListExpander> {
-  bool _isExpanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    // Determine how many matches to show initially
-    const initialCount = 5;
-    final totalCount = widget.matches.length;
-    
-    // If we have less than or equal to initialCount matches, just show all without expander
-    if (totalCount <= initialCount) {
-      return Column(
-        children: widget.matches.map((m) => _MatchCard(match: m as Map<String, dynamic>, rank: widget.rank)).toList(),
-      );
-    }
-
-    final visibleMatches = _isExpanded ? widget.matches : widget.matches.take(initialCount).toList();
-
-    return Column(
-      children: [
-        ...visibleMatches.map((m) => _MatchCard(match: m as Map<String, dynamic>, rank: widget.rank)),
-        
-        const SizedBox(height: 12),
-        Center(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _isExpanded = !_isExpanded;
-              });
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _isExpanded ? 'SHOW LESS' : 'SHOW MORE (${totalCount - initialCount})',
-                  style: AppTheme.inter(color: AppTheme.textMuted, size: 12, weight: FontWeight.w600),
-                ),
-                Icon(
-                  _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                  color: AppTheme.textMuted,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 
 // ─── Section Label ────────────────────────────────────────────────────────────
 

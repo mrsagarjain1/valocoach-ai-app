@@ -4,6 +4,7 @@ import 'package:clerk_flutter/clerk_flutter.dart';
 import '../config/app_theme.dart';
 import '../providers/app_providers.dart';
 import 'riot_login_screen.dart';
+import '../widgets/premium_modal.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -57,7 +58,12 @@ class SettingsScreen extends ConsumerWidget {
                 // ── Premium Status ──────────────────────
                 _SectionLabel('MEMBERSHIP'),
                 const SizedBox(height: 10),
-                _PremiumCard(isLinked: auth.isRiotLinked, isPremium: auth.isPremium),
+                _PremiumCard(
+                  isLinked: auth.isRiotLinked,
+                  isPremium: auth.isPremium,
+                  daysRemaining: auth.daysRemaining,
+                  subscriptionEnd: auth.subscriptionEnd,
+                ),
 
                 const SizedBox(height: 20),
 
@@ -98,31 +104,6 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: 20),
 
                 // ── Sign Out ───────────────────────────
-                if (auth.isClerkSignedIn)
-                  GestureDetector(
-                    onTap: () async {
-                      // Sign out from both Clerk SDK and Riverpod
-                      await ClerkAuth.of(context).signOut();
-                      if (context.mounted) {
-                        ref.read(authProvider.notifier).signOut();
-                      }
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryRed.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.primaryRed.withValues(alpha: 0.25)),
-                      ),
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        const Icon(Icons.logout_rounded, color: AppTheme.primaryRed, size: 18),
-                        const SizedBox(width: 10),
-                        Text('SIGN OUT', style: AppTheme.krona(size: 12, color: AppTheme.primaryRed, letterSpacing: 1)),
-                      ]),
-                    ),
-                  ),
-
                 const SizedBox(height: 20),
                 Center(child: Text('ValoCoach v1.0.0', style: AppTheme.inter(size: 12, color: AppTheme.textMuted))),
                 const SizedBox(height: 40),
@@ -144,73 +125,94 @@ class _ClerkBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final signedOutGradient = const LinearGradient(
-      colors: [Color(0xFF1E1128), Color(0xFF130D26)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
-    final signedInGradient = const LinearGradient(
-      colors: [Color(0xFF0F2027), Color(0xFF18282C)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: auth.isClerkSignedIn ? signedInGradient : signedOutGradient,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: auth.isClerkSignedIn 
-            ? const Color(0xFF00E5FF).withValues(alpha: 0.3)
-            : const Color(0xFF7C3AED).withValues(alpha: 0.3),
+    if (!auth.isClerkSignedIn) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.borderColor),
         ),
-      ),
-      child: Row(children: [
-        if (auth.isClerkSignedIn)
-           const ClerkUserButton()
-        else
+        child: Column(children: [
           Container(
-            width: 48, height: 48,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [Color(0xFF9D4EDD), Color(0xFF5A189A)]),
+            width: 56, height: 56,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryRed.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.person_rounded, color: Colors.white, size: 24),
+            child: const Icon(Icons.person_outline_rounded, color: AppTheme.primaryRed, size: 28),
           ),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(
-            auth.isClerkSignedIn ? 'SIGNED IN' : 'NOT SIGNED IN',
-            style: AppTheme.krona(
-              size: 11,
-              color: auth.isClerkSignedIn ? const Color(0xFF00E5FF) : const Color(0xFFC77DFF),
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            auth.isClerkSignedIn ? 'Active session' : 'Sign in to access premium features',
-            style: AppTheme.inter(size: 11, color: AppTheme.textSecondary),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ])),
-        if (!auth.isClerkSignedIn)
+          const SizedBox(height: 16),
+          Text('NOT SIGNED IN', style: AppTheme.krona(size: 14, letterSpacing: 1)),
+          const SizedBox(height: 6),
+          Text('Sign in to track your progress and stats', style: AppTheme.inter(size: 12, color: AppTheme.textSecondary)),
+          const SizedBox(height: 20),
           GestureDetector(
             onTap: () => Navigator.of(context).pushNamed('/clerk-login'),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)]),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4)),
-                ],
+                gradient: AppTheme.primaryGradient,
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Text('SIGN IN', style: AppTheme.krona(size: 10, color: Colors.white, letterSpacing: 1)),
+              child: Center(child: Text('SIGN IN', style: AppTheme.krona(size: 12, letterSpacing: 1.5))),
             ),
           ),
+        ]),
+      );
+    }
+
+    final user = ClerkAuth.of(context).user;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.borderColor),
+      ),
+      child: Column(children: [
+        Row(children: [
+          Container(
+            width: 64, height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppTheme.primaryRed.withValues(alpha: 0.5), width: 2),
+              image: (user?.imageUrl) != null 
+                ? DecorationImage(image: NetworkImage(user!.imageUrl!), fit: BoxFit.cover)
+                : null,
+            ),
+            child: (user?.imageUrl) == null ? const Icon(Icons.person, size: 32) : null,
+          ),
+          const SizedBox(width: 16),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(user?.firstName ?? (user?.username ?? 'Agent'), 
+                style: AppTheme.krona(size: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              (user?.emailAddresses != null && user!.emailAddresses!.isNotEmpty)
+                ? user.emailAddresses![0].emailAddress
+                : 'Connected Account', 
+              style: AppTheme.inter(size: 12, color: AppTheme.textSecondary), 
+              maxLines: 1, 
+              overflow: TextOverflow.ellipsis,
+            ),
+          ])),
+        ]),
+        const SizedBox(height: 20),
+        const Divider(color: AppTheme.borderColor),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () async {
+            await ClerkAuth.of(context).signOut();
+            ref.read(authProvider.notifier).signOut();
+          },
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Icon(Icons.logout_rounded, color: AppTheme.primaryRed, size: 18),
+            const SizedBox(width: 8),
+            Text('SIGN OUT', style: AppTheme.krona(size: 11, color: AppTheme.primaryRed, letterSpacing: 1)),
+          ]),
+        ),
       ]),
     );
   }
@@ -226,96 +228,86 @@ class _RiotBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppTheme.cardBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: auth.isRiotLinked ? AppTheme.accentGreen.withValues(alpha: 0.2) : AppTheme.borderColor),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: auth.isRiotLinked 
+            ? AppTheme.accentGreen.withValues(alpha: 0.3) 
+            : AppTheme.borderColor,
+          width: auth.isRiotLinked ? 1.5 : 1,
+        ),
       ),
       child: Column(children: [
         Row(children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: auth.isRiotLinked ? AppTheme.accentGreen.withValues(alpha: 0.12) : AppTheme.primaryRed.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
+              color: auth.isRiotLinked 
+                ? AppTheme.accentGreen.withValues(alpha: 0.1) 
+                : AppTheme.primaryRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(Icons.sports_esports_rounded, size: 20, color: auth.isRiotLinked ? AppTheme.accentGreen : AppTheme.textMuted),
+            child: Icon(Icons.sports_esports_rounded, 
+                size: 24, 
+                color: auth.isRiotLinked ? AppTheme.accentGreen : AppTheme.textMuted),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
-              auth.isRiotLinked ? 'RIOT: LINKED' : 'RIOT: NOT LINKED',
-              style: AppTheme.krona(size: 11, color: auth.isRiotLinked ? AppTheme.accentGreen : AppTheme.textSecondary, letterSpacing: 0.5),
+              auth.isRiotLinked ? 'RIOT ACCOUNT LINKED' : 'RIOT ACCOUNT',
+              style: AppTheme.krona(size: 12, 
+                  color: auth.isRiotLinked ? AppTheme.accentGreen : Colors.white, 
+                  letterSpacing: 0.5),
             ),
-            const SizedBox(height: 2),
-            Text(
-              auth.isRiotLinked ? (auth.riotPuuid ?? 'Account linked') : 'Link your Riot account for full features',
-              style: AppTheme.inter(size: 11, color: AppTheme.textMuted),
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-            ),
+            if (!auth.isRiotLinked) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Connect your account to track progress',
+                style: AppTheme.inter(size: 12, color: AppTheme.textSecondary),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ])),
+          if (auth.isRiotLinked)
+            const Icon(Icons.check_circle_rounded, color: AppTheme.accentGreen, size: 22),
         ]),
 
-        const SizedBox(height: 14),
+        if (!auth.isRiotLinked) ...[
+          const SizedBox(height: 20),
+          GestureDetector(
+            onTap: () async {
+              final result = await Navigator.of(context).push<Map<String, String>?>(
+                MaterialPageRoute(builder: (_) => const RiotLoginScreen()),
+              );
 
-        Row(children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () async {
-                final result = await Navigator.of(context).push<Map<String, String>?>(
-                  MaterialPageRoute(builder: (_) => const RiotLoginScreen()),
-                );
-                if (result != null && context.mounted) {
-                  await ref.read(authProvider.notifier).linkRiotAccount(
-                    result['puuid'] ?? '',
-                    result['token'] ?? '',
+              if (result != null && result['puuid'] != null && result['token'] != null) {
+                try {
+                  await ref.read(authProvider.notifier).linkRiot(
+                    puuid: result['puuid']!,
+                    token: result['token']!,
                   );
+                } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Riot account linked!', style: AppTheme.inter(size: 13)),
-                        backgroundColor: AppTheme.accentGreen,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+                      SnackBar(content: Text('Linking failed: $e'), backgroundColor: AppTheme.primaryRed),
                     );
                   }
                 }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  gradient: auth.isRiotLinked ? null : AppTheme.primaryGradient,
-                  color: auth.isRiotLinked ? AppTheme.borderColor : null,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    auth.isRiotLinked ? 'RE-LINK RIOT' : 'LINK RIOT ACCOUNT',
-                    style: AppTheme.krona(size: 10, letterSpacing: 1,
-                        color: auth.isRiotLinked ? AppTheme.textMuted : Colors.white),
-                  ),
-                ),
+              }
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                borderRadius: BorderRadius.circular(12),
               ),
+              child: Center(child: Text('LINK RIOT ACCOUNT', style: AppTheme.krona(size: 11, letterSpacing: 1.5))),
             ),
           ),
-          if (auth.isRiotLinked) ...[
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: () => ref.read(authProvider.notifier).unlinkRiot(),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryRed.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.primaryRed.withValues(alpha: 0.2)),
-                ),
-                child: Text('UNLINK', style: AppTheme.krona(size: 10, color: AppTheme.primaryRed, letterSpacing: 1)),
-              ),
-            ),
-          ],
-        ]),
+        ],
       ]),
     );
   }
@@ -326,47 +318,81 @@ class _RiotBlock extends StatelessWidget {
 class _PremiumCard extends StatelessWidget {
   final bool isLinked;
   final bool isPremium;
-  const _PremiumCard({required this.isLinked, required this.isPremium});
+  final int? daysRemaining;
+  final DateTime? subscriptionEnd;
+
+  const _PremiumCard({
+    required this.isLinked,
+    required this.isPremium,
+    this.daysRemaining,
+    this.subscriptionEnd,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.cardBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isPremium ? AppTheme.accentYellow.withValues(alpha: 0.2) : AppTheme.borderColor),
+    return GestureDetector(
+      onTap: () {
+        if (!isPremium) {
+          showPremiumModal(context);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: isPremium ? AppTheme.accentYellow.withValues(alpha: 0.2) : AppTheme.borderColor),
+          boxShadow: !isPremium ? [] : [
+            BoxShadow(color: AppTheme.accentYellow.withValues(alpha: 0.05), blurRadius: 20, spreadRadius: 2),
+            BoxShadow(color: AppTheme.accentYellow.withValues(alpha: 0.1), blurRadius: 8, spreadRadius: 0),
+          ],
+        ),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isPremium ? AppTheme.accentYellow.withValues(alpha: 0.12) : AppTheme.surfaceDark,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.workspace_premium_rounded, color: isPremium ? AppTheme.accentYellow : AppTheme.textMuted, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('PREMIUM STATUS', style: AppTheme.krona(size: 11, color: isPremium ? AppTheme.accentYellow : AppTheme.textMuted, letterSpacing: 0.5)),
+            const SizedBox(height: 4),
+            if (isPremium && daysRemaining != null)
+              Text(
+                'Active ($daysRemaining days left)',
+                style: AppTheme.inter(size: 12, color: Colors.white, weight: FontWeight.w600),
+              )
+            else
+              Text(
+                isPremium ? 'Full access unlocked' : (isLinked ? 'Upgrade to Premium • Tap to join' : 'Sign in to access premium features'),
+                style: AppTheme.inter(size: 11, color: AppTheme.textSecondary),
+              ),
+            if (isPremium && subscriptionEnd != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Expires: ${subscriptionEnd!.year}-${subscriptionEnd!.month.toString().padLeft(2, '0')}-${subscriptionEnd!.day.toString().padLeft(2, '0')}',
+                  style: AppTheme.inter(size: 10, color: AppTheme.textMuted),
+                ),
+              ),
+          ])),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: isPremium ? AppTheme.accentYellow.withValues(alpha: 0.1) : AppTheme.primaryRed.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: !isPremium ? AppTheme.primaryRed.withValues(alpha: 0.3) : Colors.transparent),
+            ),
+            child: Text(
+              isPremium ? 'ACTIVE' : 'JOIN',
+              style: AppTheme.krona(size: 9, color: isPremium ? AppTheme.accentYellow : AppTheme.primaryRed, letterSpacing: 0.5),
+            ),
+          ),
+        ]),
       ),
-      child: Row(children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: isPremium ? AppTheme.accentYellow.withValues(alpha: 0.12) : AppTheme.surfaceDark,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(Icons.workspace_premium_rounded, color: isPremium ? AppTheme.accentYellow : AppTheme.textMuted, size: 22),
-        ),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('PREMIUM STATUS', style: AppTheme.krona(size: 11, color: isPremium ? AppTheme.accentYellow : AppTheme.textMuted, letterSpacing: 0.5)),
-          const SizedBox(height: 2),
-          Text(
-            isPremium ? 'Full access unlocked' : (isLinked ? 'Upgrade to Premium' : 'Sign in to access premium features'),
-            style: AppTheme.inter(size: 11, color: AppTheme.textSecondary),
-          ),
-        ])),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: isPremium ? AppTheme.accentYellow.withValues(alpha: 0.1) : AppTheme.surfaceDark,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            isPremium ? 'ACTIVE' : 'FREE',
-            style: AppTheme.krona(size: 9, color: isPremium ? AppTheme.accentYellow : AppTheme.textMuted, letterSpacing: 1),
-          ),
-        ),
-      ]),
     );
   }
 }

@@ -9,31 +9,97 @@ class ApiService {
   String? _clerkUserId;
 
   ApiService._internal() {
-    _dio = Dio(BaseOptions(
-      baseUrl: ApiConfig.backendUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 240),
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ApiConfig.apiKey,
-      },
-    ));
+    _dio = Dio(
+      BaseOptions(
+        baseUrl: ApiConfig.backendUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 240),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ApiConfig.apiKey,
+        },
+      ),
+    );
 
-    _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        if (_clerkUserId != null) {
-          options.headers['X-Clerk-User-Id'] = _clerkUserId;
-        }
-        handler.next(options);
-      },
-      onError: (error, handler) {
-        handler.next(error);
-      },
-    ));
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (_clerkUserId != null) {
+            options.headers['X-Clerk-User-Id'] = _clerkUserId;
+          }
+          handler.next(options);
+        },
+        onError: (error, handler) {
+          handler.next(error);
+        },
+      ),
+    );
   }
 
   void setClerkUserId(String? userId) {
     _clerkUserId = userId;
+  }
+
+  String? get clerkUserId => _clerkUserId;
+
+  // ─── Check User Auth ──────────────────────────────────
+  // Called immediately after Clerk sign-in to see if the user has a Riot
+  // account linked and to fetch basic profile info.
+  Future<Map<String, dynamic>> checkUserAuth(String clerkId) async {
+    final response = await _dio.get('/api/check-user-auth/$clerkId');
+    return response.data;
+  }
+
+  // ─── User Status ─────────────────────────────────────
+  Future<Map<String, dynamic>> getUserStatus(String clerkId) async {
+    final response = await _dio.get('/api/user-status/$clerkId');
+    return response.data;
+  }
+
+  // ─── Premium Sync ─────────────────────────────────────
+  // Sync premium status from the backend (e.g. after payment or app restart).
+  Future<Map<String, dynamic>> syncPremiumStatus(String clerkId) async {
+    final response = await _dio.post('/api/premium/sync/$clerkId');
+    return response.data;
+  }
+
+  // ─── Razorpay: Create Order ───────────────────────────
+  // Creates a Razorpay order on the backend. Returns orderId, amount, currency.
+  Future<Map<String, dynamic>> createRazorpayOrder({
+    int amountPaise = ApiConfig.razorpayAmountPaise,
+  }) async {
+    final response = await _dio.post(
+      '/api/razorpay/create-order',
+      data: {
+        'amount': amountPaise,
+        'clerk_id': _clerkUserId,
+      },
+      options: Options(
+        sendTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    return response.data;
+  }
+
+  // ─── Razorpay: Verify Payment ─────────────────────────
+  // Called after Razorpay checkout success to verify signature and update
+  // premium status in the backend.
+  Future<Map<String, dynamic>> verifyRazorpayPayment({
+    required String orderId,
+    required String paymentId,
+    required String signature,
+  }) async {
+    final response = await _dio.post(
+      '/api/razorpay/verify-payment',
+      data: {
+        'razorpay_order_id': orderId,
+        'razorpay_payment_id': paymentId,
+        'razorpay_signature': signature,
+        'clerk_id': _clerkUserId,
+      },
+    );
+    return response.data;
   }
 
   // ─── Player Stats ─────────────────────────────────────
@@ -44,13 +110,16 @@ class ApiService {
     String mode = 'competitive',
     String platform = 'pc',
   }) async {
-    final response = await _dio.post('/player-stat', data: {
-      'name': name,
-      'tag': tag,
-      'region': region,
-      'mode': mode,
-      'platform': platform,
-    });
+    final response = await _dio.post(
+      '/player-stat',
+      data: {
+        'name': name,
+        'tag': tag,
+        'region': region,
+        'mode': mode,
+        'platform': platform,
+      },
+    );
     return response.data;
   }
 
@@ -62,13 +131,16 @@ class ApiService {
     String mode = 'competitive',
     String platform = 'pc',
   }) async {
-    final response = await _dio.post('/player-analysis', data: {
-      'name': name,
-      'tag': tag,
-      'region': region,
-      'mode': mode,
-      'platform': platform,
-    });
+    final response = await _dio.post(
+      '/player-analysis',
+      data: {
+        'name': name,
+        'tag': tag,
+        'region': region,
+        'mode': mode,
+        'platform': platform,
+      },
+    );
     return response.data;
   }
 
@@ -84,27 +156,24 @@ class ApiService {
     return response.data;
   }
 
-  // ─── Premium Sync ─────────────────────────────────────
-  Future<Map<String, dynamic>> syncPremiumStatus(String clerkId) async {
-    final response = await _dio.post('/api/premium/sync/$clerkId');
-    return response.data;
-  }
-
-
-  
   // ─── Update Quests & Data ─────────────────────────────
   Future<Map<String, dynamic>> updatePlayerDataQuests() async {
-    final response = await _dio.post('/api/update-player-data-quests', data: {
-      'region': 'ap',
-      'platform': 'pc',
-      'mode': 'competitive',
-      'matches': 10,
-    });
+    final response = await _dio.post(
+      '/api/update-player-data-quests',
+      data: {
+        'platform': 'pc',
+        'mode': 'competitive',
+        'matches': 10,
+      },
+    );
     return response.data;
   }
 
   // ─── Quests ───────────────────────────────────────────
-  Future<Map<String, dynamic>> getQuests(String clerkId, {String? questType}) async {
+  Future<Map<String, dynamic>> getQuests(
+    String clerkId, {
+    String? questType,
+  }) async {
     final queryParams = <String, dynamic>{};
     if (questType != null) queryParams['quest_type'] = questType;
 
@@ -127,29 +196,25 @@ class ApiService {
     return response.data;
   }
 
-  // ─── Check User Auth ─────────────────────────────────
-  Future<Map<String, dynamic>> checkUserAuth(String clerkId) async {
-    final response = await _dio.get('/api/check-user-auth/$clerkId');
-    return response.data;
-  }
-
-  // ─── Link Riot Account ────────────────────────────────
-  Future<Map<String, dynamic>> linkRiotAccount({
+  // ─── Onboard User (Links Riot + Inits Data) ──────────
+  Future<Map<String, dynamic>> onboardUser({
     required String clerkId,
     required String puuid,
     required String token,
+    String region = 'ap',
   }) async {
-    final response = await _dio.post('/api/riot-auth', data: {
-      'clerk_id': clerkId,
-      'puuid': puuid,
-      'token': token,
-    });
-    return response.data;
-  }
-
-  // ─── User Status ──────────────────────────────────────
-  Future<Map<String, dynamic>> getUserStatus(String clerkId) async {
-    final response = await _dio.get('/api/user-status/$clerkId');
+    final response = await _dio.post(
+      '/api/battlepass/onboard',
+      data: {
+        'clerk_id': clerkId,
+        'puuid': puuid,
+        'riot_token': token,
+        'region': region,
+        'platform': 'pc',
+        'mode': 'competitive',
+        'matches': 50,
+      },
+    );
     return response.data;
   }
 }
