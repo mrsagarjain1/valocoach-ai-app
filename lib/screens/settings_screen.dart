@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:clerk_flutter/clerk_flutter.dart';
 import '../config/app_theme.dart';
 import '../providers/app_providers.dart';
+import 'package:dio/dio.dart';
 import 'riot_login_screen.dart';
 import '../widgets/premium_modal.dart';
 
@@ -61,6 +62,7 @@ class SettingsScreen extends ConsumerWidget {
                 _PremiumCard(
                   isLinked: auth.isRiotLinked,
                   isPremium: auth.isPremium,
+                  isSyncing: auth.isSyncing,
                   daysRemaining: auth.daysRemaining,
                   subscriptionEnd: auth.subscriptionEnd,
                 ),
@@ -220,13 +222,23 @@ class _ClerkBlock extends StatelessWidget {
 
 // ─── Riot Block ───────────────────────────────────────────────────────────────
 
-class _RiotBlock extends StatelessWidget {
+class _RiotBlock extends StatefulWidget {
   final AuthState auth;
   final WidgetRef ref;
   const _RiotBlock({required this.auth, required this.ref});
 
   @override
+  State<_RiotBlock> createState() => _RiotBlockState();
+}
+
+class _RiotBlockState extends State<_RiotBlock> {
+  bool _isLinking = false;
+
+  @override
   Widget build(BuildContext context) {
+    final auth = widget.auth;
+    final isBusy = auth.isSyncing || _isLinking;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -244,37 +256,55 @@ class _RiotBlock extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: auth.isRiotLinked 
-                ? AppTheme.accentGreen.withValues(alpha: 0.1) 
-                : AppTheme.primaryRed.withValues(alpha: 0.08),
+              color: isBusy 
+                ? AppTheme.accentBlue.withValues(alpha: 0.1)
+                : auth.isRiotLinked 
+                  ? AppTheme.accentGreen.withValues(alpha: 0.1) 
+                  : AppTheme.primaryRed.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(Icons.sports_esports_rounded, 
-                size: 24, 
-                color: auth.isRiotLinked ? AppTheme.accentGreen : AppTheme.textMuted),
+            child: isBusy 
+              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: AppTheme.accentBlue, strokeWidth: 2))
+              : Icon(Icons.sports_esports_rounded, 
+                  size: 24, 
+                  color: auth.isRiotLinked ? AppTheme.accentGreen : AppTheme.textMuted),
           ),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
-              auth.isRiotLinked ? 'RIOT ACCOUNT LINKED' : 'RIOT ACCOUNT',
+              isBusy ? 'LINKING...' : (auth.isRiotLinked ? 'RIOT ACCOUNT LINKED' : 'RIOT ACCOUNT'),
               style: AppTheme.krona(size: 12, 
-                  color: auth.isRiotLinked ? AppTheme.accentGreen : Colors.white, 
+                  color: isBusy ? AppTheme.accentBlue : (auth.isRiotLinked ? AppTheme.accentGreen : Colors.white), 
                   letterSpacing: 0.5),
             ),
-            if (!auth.isRiotLinked) ...[
+            if (isBusy) ...[
+              const SizedBox(height: 4),
+              Text(
+                _isLinking ? 'Verifying with server...' : 'Fetching latest stats...',
+                style: AppTheme.inter(size: 12, color: AppTheme.textSecondary),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+              ),
+            ] else if (!auth.isRiotLinked) ...[
               const SizedBox(height: 4),
               Text(
                 'Connect your account to track progress',
                 style: AppTheme.inter(size: 12, color: AppTheme.textSecondary),
                 maxLines: 1, overflow: TextOverflow.ellipsis,
               ),
+            ] else if (auth.riotPuuid != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'PUUID: ${auth.riotPuuid!}',
+                style: AppTheme.inter(size: 10, color: AppTheme.textSecondary),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+              ),
             ],
           ])),
-          if (auth.isRiotLinked)
+          if (auth.isRiotLinked && !isBusy)
             const Icon(Icons.check_circle_rounded, color: AppTheme.accentGreen, size: 22),
         ]),
 
-        if (!auth.isRiotLinked) ...[
+        if (!auth.isRiotLinked && !isBusy) ...[
           const SizedBox(height: 20),
           GestureDetector(
             onTap: () async {
@@ -283,17 +313,40 @@ class _RiotBlock extends StatelessWidget {
               );
 
               if (result != null && result['puuid'] != null && result['token'] != null) {
+                if (!mounted) return;
+                setState(() => _isLinking = true);
                 try {
-                  await ref.read(authProvider.notifier).linkRiot(
+                  await widget.ref.read(authProvider.notifier).linkRiot(
                     puuid: result['puuid']!,
                     token: result['token']!,
                   );
+                } on DioException catch (e) {
+                  if (context.mounted) {
+                    String msg = 'An error occurred';
+                    if (e.response?.statusCode == 502) {
+                       msg = 'Server is waking up. Please try again in 30 seconds.';
+                    } else if (e.response?.statusCode == 409) {
+                       msg = 'This Riot account is already linked to another player.';
+                       if (e.response?.data is Map && e.response?.data['error'] != null) {
+                         msg = e.response?.data['error']?.toString() ?? msg;
+                       }
+                    } else if (e.response?.data != null && e.response!.data is Map) {
+                       msg = e.response!.data['error']?.toString() ?? e.response!.data.toString();
+                    } else {
+                       msg = e.message ?? e.toString();
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Linking failed: $msg'), backgroundColor: AppTheme.primaryRed),
+                    );
+                  }
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Linking failed: $e'), backgroundColor: AppTheme.primaryRed),
                     );
                   }
+                } finally {
+                  if (mounted) setState(() => _isLinking = false);
                 }
               }
             },
@@ -318,12 +371,14 @@ class _RiotBlock extends StatelessWidget {
 class _PremiumCard extends StatelessWidget {
   final bool isLinked;
   final bool isPremium;
+  final bool isSyncing;
   final int? daysRemaining;
   final DateTime? subscriptionEnd;
 
   const _PremiumCard({
     required this.isLinked,
     required this.isPremium,
+    required this.isSyncing,
     this.daysRemaining,
     this.subscriptionEnd,
   });
@@ -332,7 +387,7 @@ class _PremiumCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        if (!isPremium) {
+        if (!isPremium && !isSyncing) {
           showPremiumModal(context);
         }
       },
@@ -354,13 +409,20 @@ class _PremiumCard extends StatelessWidget {
               color: isPremium ? AppTheme.accentYellow.withValues(alpha: 0.12) : AppTheme.surfaceDark,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(Icons.workspace_premium_rounded, color: isPremium ? AppTheme.accentYellow : AppTheme.textMuted, size: 22),
+            child: isSyncing 
+                ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: AppTheme.textMuted, strokeWidth: 2))
+                : Icon(Icons.workspace_premium_rounded, color: isPremium ? AppTheme.accentYellow : AppTheme.textMuted, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('PREMIUM STATUS', style: AppTheme.krona(size: 11, color: isPremium ? AppTheme.accentYellow : AppTheme.textMuted, letterSpacing: 0.5)),
+            Text('PREMIUM STATUS', style: AppTheme.krona(size: 11, color: isPremium ? AppTheme.accentYellow : (isSyncing ? AppTheme.accentBlue : AppTheme.textMuted), letterSpacing: 0.5)),
             const SizedBox(height: 4),
-            if (isPremium && daysRemaining != null)
+            if (isSyncing)
+              Text(
+                'Checking subscription...',
+                style: AppTheme.inter(size: 11, color: AppTheme.textSecondary),
+              )
+            else if (isPremium && daysRemaining != null)
               Text(
                 'Active ($daysRemaining days left)',
                 style: AppTheme.inter(size: 12, color: Colors.white, weight: FontWeight.w600),
@@ -370,7 +432,7 @@ class _PremiumCard extends StatelessWidget {
                 isPremium ? 'Full access unlocked' : (isLinked ? 'Upgrade to Premium • Tap to join' : 'Sign in to access premium features'),
                 style: AppTheme.inter(size: 11, color: AppTheme.textSecondary),
               ),
-            if (isPremium && subscriptionEnd != null)
+            if (isPremium && subscriptionEnd != null && !isSyncing)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
@@ -379,18 +441,31 @@ class _PremiumCard extends StatelessWidget {
                 ),
               ),
           ])),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: isPremium ? AppTheme.accentYellow.withValues(alpha: 0.1) : AppTheme.primaryRed.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: !isPremium ? AppTheme.primaryRed.withValues(alpha: 0.3) : Colors.transparent),
+          if (isSyncing)
+             Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppTheme.accentBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'SYNCING',
+                style: AppTheme.krona(size: 9, color: AppTheme.accentBlue, letterSpacing: 0.5),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isPremium ? AppTheme.accentYellow.withValues(alpha: 0.1) : AppTheme.primaryRed.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: !isPremium ? AppTheme.primaryRed.withValues(alpha: 0.3) : Colors.transparent),
+              ),
+              child: Text(
+                isPremium ? 'ACTIVE' : 'JOIN',
+                style: AppTheme.krona(size: 9, color: isPremium ? AppTheme.accentYellow : AppTheme.primaryRed, letterSpacing: 0.5),
+              ),
             ),
-            child: Text(
-              isPremium ? 'ACTIVE' : 'JOIN',
-              style: AppTheme.krona(size: 9, color: isPremium ? AppTheme.accentYellow : AppTheme.primaryRed, letterSpacing: 0.5),
-            ),
-          ),
         ]),
       ),
     );

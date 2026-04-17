@@ -162,13 +162,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (state.clerkUserId == null) return;
 
     try {
-      // 1. Tell backend to link it permanently (via onboarding)
-      await _api.onboardUser(
-        clerkId: state.clerkUserId!,
-        puuid: puuid,
-        token: token,
-        region: 'ap', // Default to Asia Pacific
-      );
+      // 1. Tell backend to link it permanently (via onboarding) if not already linked
+      final status = await _api.checkUserAuth(state.clerkUserId!);
+      if (status['exists'] != true) {
+        await _api.onboardUser(
+          clerkId: state.clerkUserId!,
+          puuid: puuid,
+          token: token,
+          region: 'ap', // Default to Asia Pacific
+        );
+      }
 
       // 2. Persist locally
       await _cache.saveRiotAuth(

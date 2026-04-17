@@ -336,15 +336,6 @@ class _OverviewTab extends StatelessWidget {
         const SizedBox(height: 14),
         _AggregatedGrid(agg: agg, roundStats: roundStats),
 
-        if (currentMatchObj != null || currentPerMatch != null) ...[
-          const SizedBox(height: 28),
-          Text('SELECTED MATCH',
-              style: AppTheme.krona(size: 12, color: AppTheme.textMuted, letterSpacing: 1.5)),
-          const SizedBox(height: 14),
-          _SelectedMatchReport(
-              match: currentMatchObj ?? {}, perMatchStats: currentPerMatch ?? {}),
-        ],
-
         const SizedBox(height: 60),
       ],
     );
@@ -613,20 +604,191 @@ Widget _AggCard(String label, String value, Color color) {
 // ─── History Tab ──────────────────────────────────────────────────────────────
 // Shows all matches; tapping one opens MatchDetailScreen.
 
-class _HistoryTab extends StatelessWidget {
+class _HistoryTab extends StatefulWidget {
   final Map<String, dynamic>? data;
   final bool isLoading;
 
   const _HistoryTab({this.data, required this.isLoading});
 
   @override
+  State<_HistoryTab> createState() => _HistoryTabState();
+}
+
+class _HistoryTabState extends State<_HistoryTab> {
+  String _filterResult = 'All';
+  String _filterAgent = 'All';
+  RangeValues _acsRange = const RangeValues(0, 500);
+  RangeValues _killsRange = const RangeValues(0, 50);
+
+  static const double _maxAcs = 500;
+  static const double _maxKills = 50;
+
+  void _showFilterSheet(BuildContext context, List<String> availableAgents) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            Widget _filterChip(String label, String value, String current, Function(String) onSelect) {
+              final isSelected = value == current;
+              return GestureDetector(
+                onTap: () {
+                  setModalState(() => onSelect(value));
+                  setState(() => onSelect(value));
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppTheme.primaryRed : AppTheme.surfaceDark,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: isSelected ? AppTheme.primaryRed : AppTheme.borderColor),
+                  ),
+                  child: Text(label, style: AppTheme.inter(size: 11, color: isSelected ? Colors.white : AppTheme.textMuted, weight: FontWeight.w600)),
+                ),
+              );
+            }
+
+            return Container(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              decoration: const BoxDecoration(
+                color: AppTheme.darkBg,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('FILTER MATCHES', style: AppTheme.krona(size: 14, color: Colors.white)),
+                        Row(children: [
+                          GestureDetector(
+                            onTap: () {
+                              setModalState(() {
+                                _filterResult = 'All';
+                                _filterAgent = 'All';
+                                _acsRange = const RangeValues(0, _maxAcs);
+                                _killsRange = const RangeValues(0, _maxKills);
+                              });
+                              setState(() {
+                                _filterResult = 'All';
+                                _filterAgent = 'All';
+                                _acsRange = const RangeValues(0, _maxAcs);
+                                _killsRange = const RangeValues(0, _maxKills);
+                              });
+                            },
+                            child: Text('RESET', style: AppTheme.inter(size: 10, color: AppTheme.primaryRed, weight: FontWeight.bold)),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(icon: const Icon(Icons.close, color: Colors.white54), onPressed: () => Navigator.pop(ctx)),
+                        ]),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Text('RESULT', style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.bold, letterSpacing: 1)),
+                    const SizedBox(height: 10),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      _filterChip('ALL', 'All', _filterResult, (v) => _filterResult = v),
+                      _filterChip('VICTORY', 'Victory', _filterResult, (v) => _filterResult = v),
+                      _filterChip('DEFEAT', 'Defeat', _filterResult, (v) => _filterResult = v),
+                      _filterChip('DRAW', 'Draw', _filterResult, (v) => _filterResult = v),
+                    ]),
+                    const SizedBox(height: 20),
+                    Text('AGENT', style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.bold, letterSpacing: 1)),
+                    const SizedBox(height: 10),
+                    Wrap(spacing: 8, runSpacing: 8, children: [
+                      _filterChip('ALL', 'All', _filterAgent, (v) => _filterAgent = v),
+                      for (final a in availableAgents) _filterChip(a, a, _filterAgent, (v) => _filterAgent = v),
+                    ]),
+                    const SizedBox(height: 20),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text('ACS RANGE', style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.bold, letterSpacing: 1)),
+                      Text('${_acsRange.start.toInt()} – ${_acsRange.end >= _maxAcs ? "MAX" : _acsRange.end.toInt()}',
+                          style: AppTheme.inter(size: 10, color: Colors.white70)),
+                    ]),
+                    RangeSlider(
+                      values: _acsRange,
+                      min: 0,
+                      max: _maxAcs,
+                      divisions: 50,
+                      activeColor: AppTheme.primaryRed,
+                      inactiveColor: AppTheme.borderColor,
+                      onChanged: (v) { setModalState(() => _acsRange = v); setState(() => _acsRange = v); },
+                    ),
+                    const SizedBox(height: 8),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text('KILLS RANGE', style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.bold, letterSpacing: 1)),
+                      Text('${_killsRange.start.toInt()} – ${_killsRange.end >= _maxKills ? "MAX" : _killsRange.end.toInt()}',
+                          style: AppTheme.inter(size: 10, color: Colors.white70)),
+                    ]),
+                    RangeSlider(
+                      values: _killsRange,
+                      min: 0,
+                      max: _maxKills,
+                      divisions: 50,
+                      activeColor: AppTheme.primaryRed,
+                      inactiveColor: AppTheme.borderColor,
+                      onChanged: (v) { setModalState(() => _killsRange = v); setState(() => _killsRange = v); },
+                    ),
+                    const SizedBox(height: 24),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(color: AppTheme.primaryRed, borderRadius: BorderRadius.circular(12)),
+                        alignment: Alignment.center,
+                        child: Text('APPLY FILTERS', style: AppTheme.krona(size: 12, color: Colors.white, letterSpacing: 1)),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (isLoading) {
+    if (widget.isLoading) {
       return const Center(child: CircularProgressIndicator(color: AppTheme.primaryRed));
     }
 
-    final matches = _matches(data);
-    final perMatch = _perMatchStats(data);
+    final matches = _matches(widget.data);
+    final perMatch = _perMatchStats(widget.data);
+
+    final availableAgents = matches.map((m) => (m['agent_and_abilities']?['agent_name'] ?? 'Unknown').toString()).toSet().toList()..sort();
+
+    final filteredIndices = <int>[];
+    for (int i = 0; i < matches.length; i++) {
+        final m = matches[i];
+        final meta = m['match_metadata'] as Map<String, dynamic>? ?? {};
+        final combat = m['combat_stats'] as Map<String, dynamic>? ?? {};
+        final agentAbilities = m['agent_and_abilities'] as Map<String, dynamic>? ?? {};
+
+        final isWin = meta['won'] == true;
+        final isDraw = meta['draw'] == true || (meta['won'] == null && meta['lost'] == null);
+        final agentName = agentAbilities['agent_name']?.toString() ?? 'Unknown';
+        final acs = _num(combat['acs']);
+        final kills = _num(combat['kills']);
+
+        if (_filterResult == 'Victory' && !isWin) continue;
+        if (_filterResult == 'Defeat' && (isWin || isDraw)) continue;
+        if (_filterResult == 'Draw' && !isDraw) continue;
+        if (_filterAgent != 'All' && agentName != _filterAgent) continue;
+        if (acs < _acsRange.start || (_acsRange.end < _maxAcs && acs > _acsRange.end)) continue;
+        if (kills < _killsRange.start || (_killsRange.end < _maxKills && kills > _killsRange.end)) continue;
+
+        filteredIndices.add(i);
+    }
 
     if (matches.isEmpty) {
       return Center(
@@ -637,29 +799,43 @@ class _HistoryTab extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
       physics: const BouncingScrollPhysics(),
-      itemCount: matches.length + 1,
+      itemCount: filteredIndices.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 18),
-            child: Text(
-              'MATCH HISTORY (${matches.length})',
-              style: AppTheme.krona(size: 20, color: Colors.white),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'MATCH HISTORY (${filteredIndices.length})',
+                  style: AppTheme.krona(size: 20, color: Colors.white),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.filter_list_rounded, color: Colors.white),
+                  onPressed: () => _showFilterSheet(context, availableAgents),
+                ),
+              ],
             ),
           );
         }
 
-        final i = index - 1;
-        final m = matches[i];
-        final pms = (i < perMatch.length) ? perMatch[i] : <String, dynamic>{};
+        final originalIndex = filteredIndices[index - 1];
+        final m = matches[originalIndex];
+        final pms = (originalIndex < perMatch.length) ? perMatch[originalIndex] : <String, dynamic>{};
 
         final meta = m['match_metadata'] as Map<String, dynamic>? ?? {};
         final combat = m['combat_stats'] as Map<String, dynamic>? ?? {};
         final agentAbilities = m['agent_and_abilities'] as Map<String, dynamic>? ?? {};
 
+        final roundsWon = _int(pms['rounds_won']);
+        final roundsLost = _int(pms['rounds_lost']);
+        
         final isWin = meta['won'] == true;
-        final resultColor = isWin ? const Color(0xFF0FB5AE) : const Color(0xFFF53D4C);
-        final resultLabel = isWin ? 'VICTORY' : 'DEFEAT';
+        final isDraw = meta['draw'] == true || (roundsWon > 0 && roundsWon == roundsLost);
+        final isActualWin = isWin && !isDraw;
+        final resultColor = isDraw ? Colors.grey : (isActualWin ? const Color(0xFF0FB5AE) : const Color(0xFFF53D4C));
+        final resultLabel = isDraw ? 'DRAW' : (isActualWin ? 'VICTORY' : 'DEFEAT');
 
         final mapName = meta['map_name']?.toString() ?? 'Unknown';
         final agentName = agentAbilities['agent_name']?.toString() ?? 'Unknown';
@@ -667,8 +843,6 @@ class _HistoryTab extends StatelessWidget {
         final deaths = _int(combat['deaths']);
         final assists = _int(combat['assists']);
         final acs = _num(combat['acs']);
-        final roundsWon = _int(pms['rounds_won']);
-        final roundsLost = _int(pms['rounds_lost']);
         final startedAt = meta['started_at']?.toString() ?? '';
         final matchId = m['match_id']?.toString() ?? '';
 

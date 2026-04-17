@@ -160,17 +160,35 @@ class _SummaryTab extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: accent.withValues(alpha: 0.3)),
               ),
-              child: Text(outcome, style: AppTheme.krona(size: 12, color: accent, letterSpacing: 1.5)),
+              child: Text(outcome, style: AppTheme.krona(size: 11, color: accent, letterSpacing: 1.5)),
             ),
-            const SizedBox(height: 20),
-            Text('PERFORMANCE RATING', style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.w700, letterSpacing: 1.5)),
-            const SizedBox(height: 8),
-            Text(ai['performance_rating']?.toString() ?? 'N/A', 
-                style: AppTheme.krona(size: 42, color: Colors.white, letterSpacing: 1)),
+            const SizedBox(height: 24),
+            Text('PERFORMANCE RATING', 
+                style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.w800, letterSpacing: 2)),
             const SizedBox(height: 12),
+            SizedBox(
+              height: 44,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  ai['performance_rating']?.toString() ?? 'N/A', 
+                  style: AppTheme.krona(size: 38, color: Colors.white, letterSpacing: 1),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             if (ai['player_archetype'] != null)
-              Text(ai['player_archetype']!.toString().toUpperCase(), 
-                  style: AppTheme.inter(size: 13, color: AppTheme.accentYellow, weight: FontWeight.w700)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentYellow.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  ai['player_archetype']!.toString().toUpperCase(), 
+                  style: AppTheme.inter(size: 12, color: AppTheme.accentYellow, weight: FontWeight.w800, letterSpacing: 0.5),
+                ),
+              ),
           ]),
         ),
         const SizedBox(height: 24),

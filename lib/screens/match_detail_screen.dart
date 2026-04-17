@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 import 'per_match_analysis_screen.dart';
+import 'replay/replay_tab.dart';
 
 /// Opened when the user taps a match in the HISTORY tab.
-/// 3 tabs: MATCH overview, ROUNDS, AI Analysis
+/// 4 tabs: MATCH overview, ROUNDS, AI Analysis, 2D REPLAY
 class MatchDetailScreen extends StatefulWidget {
   final Map<String, dynamic> match;
   final Map<String, dynamic> perMatchStats;
@@ -28,7 +29,7 @@ class _MatchDetailScreenState extends State<MatchDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -83,9 +84,10 @@ class _MatchDetailScreenState extends State<MatchDetailScreen>
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
                 tabs: const [
-                  Tab(text: 'MATCH'),
+                  Tab(text: 'OVERVIEW'),
                   Tab(text: 'ROUNDS'),
                   Tab(text: 'AI'),
+                  Tab(text: 'REPLAY'),
                 ],
               ),
             ),
@@ -102,6 +104,7 @@ class _MatchDetailScreenState extends State<MatchDetailScreen>
                   onRoundSelect: (i) => setState(() => _selectedRoundIndex = i),
                 ),
                 PerMatchAnalysisBody(matchId: widget.matchId),
+                ReplayTab(matchId: widget.matchId),
               ],
             ),
           ),
@@ -338,33 +341,35 @@ class _MatchHeader extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        height: 200,
         decoration: BoxDecoration(
           border: Border.all(color: accentColor.withValues(alpha: 0.5), width: 1.5),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Stack(
-          fit: StackFit.expand,
           children: [
             // ── Map background image ──────────────────────────────
-            Image.asset(
-              _mapAssetPath(mapName),
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1C0014)),
+            Positioned.fill(
+              child: Image.asset(
+                _mapAssetPath(mapName),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(color: const Color(0xFF1C0014)),
+              ),
             ),
 
             // ── Dark gradient overlay ─────────────────────────────
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.black.withValues(alpha: 0.80),
-                    Colors.black.withValues(alpha: 0.40),
-                    Colors.black.withValues(alpha: 0.65),
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withValues(alpha: 0.80),
+                      Colors.black.withValues(alpha: 0.40),
+                      Colors.black.withValues(alpha: 0.65),
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
                 ),
               ),
             ),
@@ -402,10 +407,12 @@ class _MatchHeader extends StatelessWidget {
             ),
 
             // ── Content overlay ───────────────────────────────────
-            Padding(
+            Container(
+              constraints: const BoxConstraints(minHeight: 200),
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Top: Map name + WIN/LOSS badge on LEFT, nothing on right (agent art is right)
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -437,26 +444,28 @@ class _MatchHeader extends StatelessWidget {
                     ]),
                   ]),
 
-                  const Spacer(),
-
                   // Bottom row: agent pill (left) + score (left, not pushed to right into agent)
                   Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       // Score — on the LEFT so it never collides with agent art
-                      Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                        Text(
-                          '$roundsWon',
-                          style: AppTheme.krona(size: 42, color: isWin ? const Color(0xFF16C47F) : const Color(0xFFF53D4C)),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 5),
-                          child: Text(':', style: AppTheme.krona(size: 32, color: Colors.white38)),
-                        ),
-                        Text(
-                          '$roundsLost',
-                          style: AppTheme.krona(size: 42, color: isWin ? const Color(0xFFF53D4C) : const Color(0xFF16C47F)),
-                        ),
-                      ]),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                          Text(
+                            '$roundsWon',
+                            style: AppTheme.krona(size: 42, color: isWin ? const Color(0xFF16C47F) : const Color(0xFFF53D4C)),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            child: Text(':', style: AppTheme.krona(size: 32, color: Colors.white38)),
+                          ),
+                          Text(
+                            '$roundsLost',
+                            style: AppTheme.krona(size: 42, color: isWin ? const Color(0xFFF53D4C) : const Color(0xFF16C47F)),
+                          ),
+                        ]),
+                      ),
                       const SizedBox(height: 6),
                       // Agent pill
                       Container(
@@ -624,7 +633,7 @@ class _WeaponChip extends StatelessWidget {
 
 // ─── Rounds Tab Content ────────────────────────────────────────────────────────
 
-class _RoundsTabContent extends StatelessWidget {
+class _RoundsTabContent extends StatefulWidget {
   final Map<String, dynamic> perMatchStats;
   final int selectedRoundIndex;
   final Function(int) onRoundSelect;
@@ -636,8 +645,110 @@ class _RoundsTabContent extends StatelessWidget {
   });
 
   @override
+  State<_RoundsTabContent> createState() => _RoundsTabContentState();
+}
+
+class _RoundsTabContentState extends State<_RoundsTabContent> {
+  String _filterResult = 'All';
+  String _filterSide = 'All';
+  String _filterEvent = 'All';
+
+  void _showFilterSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            Widget _filterChip(String label, String value, String current, Function(String) onSelect) {
+              final isSelected = value == current;
+              return GestureDetector(
+                onTap: () {
+                  setModalState(() => onSelect(value));
+                  setState(() => onSelect(value));
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppTheme.primaryRed : AppTheme.surfaceDark,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: isSelected ? AppTheme.primaryRed : AppTheme.borderColor),
+                  ),
+                  child: Text(label, style: AppTheme.inter(size: 11, color: isSelected ? Colors.white : AppTheme.textMuted, weight: FontWeight.w600)),
+                ),
+              );
+            }
+
+            return Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                color: AppTheme.darkBg,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('FILTER ROUNDS', style: AppTheme.krona(size: 14, color: Colors.white)),
+                      IconButton(icon: const Icon(Icons.close, color: Colors.white54), onPressed: () => Navigator.pop(ctx)),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text('RESULT', style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.bold, letterSpacing: 1)),
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    _filterChip('ALL', 'All', _filterResult, (v) => _filterResult = v),
+                    _filterChip('WON', 'Won', _filterResult, (v) => _filterResult = v),
+                    _filterChip('LOST', 'Lost', _filterResult, (v) => _filterResult = v),
+                  ]),
+                  const SizedBox(height: 20),
+                  Text('SIDE', style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.bold, letterSpacing: 1)),
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    _filterChip('ALL', 'All', _filterSide, (v) => _filterSide = v),
+                    _filterChip('ATTACK', 'Attack', _filterSide, (v) => _filterSide = v),
+                    _filterChip('DEFENSE', 'Defense', _filterSide, (v) => _filterSide = v),
+                  ]),
+                  const SizedBox(height: 20),
+                  Text('KEY EVENTS', style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.bold, letterSpacing: 1)),
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    _filterChip('ALL', 'All', _filterEvent, (v) => _filterEvent = v),
+                    _filterChip('FIRST BLOOD', 'First Blood', _filterEvent, (v) => _filterEvent = v),
+                    _filterChip('FIRST DEATH', 'First Death', _filterEvent, (v) => _filterEvent = v),
+                    _filterChip('CLUTCH', 'Clutch', _filterEvent, (v) => _filterEvent = v),
+                    _filterChip('ACE', 'Ace', _filterEvent, (v) => _filterEvent = v),
+                    _filterChip('PLANTED', 'Planted', _filterEvent, (v) => _filterEvent = v),
+                    _filterChip('DEFUSED', 'Defused', _filterEvent, (v) => _filterEvent = v),
+                  ]),
+                  const SizedBox(height: 30),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(color: AppTheme.primaryRed, borderRadius: BorderRadius.circular(12)),
+                      alignment: Alignment.center,
+                      child: Text('APPLY FILTERS', style: AppTheme.krona(size: 12, color: Colors.white, letterSpacing: 1)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final rounds = (perMatchStats['per_round_details'] as List? ?? [])
+    final rounds = (widget.perMatchStats['per_round_details'] as List? ?? [])
         .map((e) => e as Map<String, dynamic>)
         .toList();
 
@@ -648,13 +759,39 @@ class _RoundsTabContent extends StatelessWidget {
       );
     }
 
-    final winsCount = rounds.where((r) => r['round_result']?.toString().toLowerCase() == 'won').length;
-    final lossCount = rounds.length - winsCount;
+    final filteredRounds = rounds.where((r) {
+      final won = r['round_result']?.toString().toLowerCase() == 'won';
+      final side = r['player_side']?.toString().toLowerCase() ?? '';
+      final fb = r['got_first_blood'] == true;
+      final fd = r['got_first_death'] == true;
+      final clutch = r['was_clutch'] == true;
+      final ace = r['was_ace'] == true;
+      final plant = r['planted'] == true;
+      final defuse = r['defused'] == true;
 
-    final selectedRound = selectedRoundIndex < rounds.length ? rounds[selectedRoundIndex] : rounds.first;
+      if (_filterResult == 'Won' && !won) return false;
+      if (_filterResult == 'Lost' && won) return false;
+      if (_filterSide == 'Attack' && side != 'attack') return false;
+      if (_filterSide == 'Defense' && side != 'defense') return false;
 
-    final firstHalf = rounds.sublist(0, rounds.length > 12 ? 12 : rounds.length);
-    final secondHalf = rounds.length > 12 ? rounds.sublist(12) : <Map<String, dynamic>>[];
+      if (_filterEvent == 'First Blood' && !fb) return false;
+      if (_filterEvent == 'First Death' && !fd) return false;
+      if (_filterEvent == 'Clutch' && !clutch) return false;
+      if (_filterEvent == 'Ace' && !ace) return false;
+      if (_filterEvent == 'Planted' && !plant) return false;
+      if (_filterEvent == 'Defused' && !defuse) return false;
+
+      return true;
+    }).toList();
+
+    final winsCount = filteredRounds.where((r) => r['round_result']?.toString().toLowerCase() == 'won').length;
+    final lossCount = filteredRounds.length - winsCount;
+
+    final selectedRound = widget.selectedRoundIndex < rounds.length ? rounds[widget.selectedRoundIndex] : rounds.first;
+
+    // Determine first and second half based on the original global index
+    final firstHalf = filteredRounds.where((r) => rounds.indexOf(r) < 12).toList();
+    final secondHalf = filteredRounds.where((r) => rounds.indexOf(r) >= 12).toList();
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -662,6 +799,12 @@ class _RoundsTabContent extends StatelessWidget {
       children: [
         Row(children: [
           Text('ROUND SELECT', style: AppTheme.krona(size: 14, color: Colors.white)),
+          IconButton(
+            icon: const Icon(Icons.filter_list_rounded, color: Colors.white, size: 20),
+            padding: const EdgeInsets.only(left: 8),
+            constraints: const BoxConstraints(),
+            onPressed: () => _showFilterSheet(context),
+          ),
           const Spacer(),
           _PillBadge('${winsCount}W', const Color(0xFF0FB5AE)),
           const SizedBox(width: 6),
@@ -671,23 +814,23 @@ class _RoundsTabContent extends StatelessWidget {
 
         _HalfLabel('FIRST HALF', firstHalf),
         const SizedBox(height: 10),
-        _RoundGrid(rounds: firstHalf, allRounds: rounds, selectedIndex: selectedRoundIndex, onSelect: onRoundSelect),
+        _RoundGrid(rounds: firstHalf, allRounds: rounds, selectedIndex: widget.selectedRoundIndex, onSelect: widget.onRoundSelect),
         if (secondHalf.isNotEmpty) ...[
           const SizedBox(height: 20),
           _HalfLabel('SECOND HALF', secondHalf),
           const SizedBox(height: 10),
-          _RoundGrid(rounds: secondHalf, allRounds: rounds, selectedIndex: selectedRoundIndex, onSelect: onRoundSelect),
+          _RoundGrid(rounds: secondHalf, allRounds: rounds, selectedIndex: widget.selectedRoundIndex, onSelect: widget.onRoundSelect),
         ],
         const SizedBox(height: 28),
 
         Row(children: [
           Text('ROUND REPORT', style: AppTheme.krona(size: 12, color: AppTheme.primaryRed, letterSpacing: 1.5)),
           const SizedBox(width: 10),
-          Text('Round ${selectedRoundIndex + 1}',
+          Text('Round ${widget.selectedRoundIndex + 1}',
               style: AppTheme.inter(size: 12, color: AppTheme.textMuted, weight: FontWeight.bold)),
         ]),
         const SizedBox(height: 14),
-        _RoundReport(round: selectedRound, roundNumber: selectedRoundIndex + 1),
+        _RoundReport(round: selectedRound, roundNumber: widget.selectedRoundIndex + 1),
         const SizedBox(height: 60),
       ],
     );

@@ -47,29 +47,53 @@ class _PremiumModalState extends ConsumerState<PremiumModal> {
       final authNotifier = ref.read(authProvider.notifier);
       final api = ref.read(apiServiceProvider);
 
-      // Verify payment with backend
-      await api.verifyRazorpayPayment(
-        orderId: response.orderId ?? '',
-        paymentId: response.paymentId ?? '',
-        signature: response.signature ?? '',
-      );
+      // 1. Send verification to backend (Next.js logs/confirms, though DB is updated by Webhook)
+      try {
+        await api.verifyRazorpayPayment(
+          orderId: response.orderId ?? '',
+          paymentId: response.paymentId ?? '',
+          signature: response.signature ?? '',
+        );
+      } catch (e) {
+         print('Payment verified by gateway, but backend proxy returned error: $e');
+      }
 
-      // Re-sync premium status
-      await authNotifier.refreshPremium();
+      // 2. Poll for the Webhook to actually update the DB
+      bool isPremium = false;
+      for (int i = 0; i < 6; i++) {
+        await Future.delayed(const Duration(seconds: 2));
+        await authNotifier.refreshPremium();
+        final authState = ref.read(authProvider);
+        if (authState.isPremium) {
+          isPremium = true;
+          break;
+        }
+      }
       
       if (mounted) {
         setState(() => _isProcessing = false);
         Navigator.pop(context); // Close modal
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Welcome to Premium! 🎉', style: AppTheme.inter(size: 13, weight: FontWeight.w600)),
-            backgroundColor: AppTheme.accentYellow,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        
+        if (isPremium) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Welcome to Premium! 🎉', style: AppTheme.inter(size: 13, weight: FontWeight.w600, color: Colors.black)),
+              backgroundColor: AppTheme.accentYellow,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Payment received! Your premium status will activate shortly.', style: AppTheme.inter(size: 13, color: Colors.white)),
+              backgroundColor: AppTheme.accentGreen,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     } catch (e) {
-      _showError('Payment verification failed.');
+      _showError('Payment received, but error syncing status.');
     }
   }
 
@@ -118,12 +142,13 @@ class _PremiumModalState extends ConsumerState<PremiumModal> {
       final orderId = orderRes['orderId'];
       final amount = orderRes['amount'];
       final currency = orderRes['currency'];
+      final backendKeyId = orderRes['key_id'];
 
       final user = ClerkAuth.of(context).user;
       
       // 2. Open Razorpay native checkout
       final Map<String, dynamic> options = {
-        'key': ApiConfig.razorpayKeyId,
+        'key': backendKeyId ?? ApiConfig.razorpayKeyId,
         'amount': amount,
         'currency': currency,
         'name': 'ValoCoach.AI',

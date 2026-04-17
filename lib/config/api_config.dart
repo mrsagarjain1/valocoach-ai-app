@@ -1,13 +1,15 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 /// API Configuration for ValoCoach
 class ApiConfig {
   ApiConfig._();
 
-  static const String backendUrl = 'https://battlepass.onrender.com';
-  static const String apiKey = 'ommvquCzN3CeKKshW9313V1K77TlEQlb';
+  static String get backendUrl => dotenv.env['BACKEND_URL'] ?? 'https://battlepass.onrender.com';
+  static String get nextJsUrl => dotenv.env['NEXT_JS_URL'] ?? 'https://www.valocoach.ai';
+  static String get apiKey => dotenv.env['API_KEY'] ?? '';
 
   // Clerk
-  static const String clerkPublishableKey =
-      'pk_test_cG9zc2libGUtY2xhbS0xLmNsZXJrLmFjY291bnRzLmRldiQ';
+  static String get clerkPublishableKey => dotenv.env['CLERK_PUBLISHABLE_KEY'] ?? '';
 
   // Riot Auth
   static const String riotAuthUrl =
@@ -15,7 +17,7 @@ class ApiConfig {
 
   // Razorpay (test key — replace with live key for production)
   // Test Key ID: rzp_test_* — get from https://dashboard.razorpay.com
-  static const String razorpayKeyId = 'rzp_test_5O5y63a2SthJq9';
+  static String get razorpayKeyId => dotenv.env['RAZORPAY_KEY_ID'] ?? '';
   static const int razorpayAmountPaise = 9900; // ₹99 in paise
 
   // Cache TTL

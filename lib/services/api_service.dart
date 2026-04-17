@@ -69,12 +69,14 @@ class ApiService {
     int amountPaise = ApiConfig.razorpayAmountPaise,
   }) async {
     final response = await _dio.post(
-      '/api/razorpay/create-order',
+      '${ApiConfig.nextJsUrl}/api/razorpay/create-order',
       data: {
         'amount': amountPaise,
-        'clerk_id': _clerkUserId,
       },
       options: Options(
+        headers: {
+          'x-user-id': _clerkUserId,
+        },
         sendTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
       ),
@@ -91,13 +93,17 @@ class ApiService {
     required String signature,
   }) async {
     final response = await _dio.post(
-      '/api/razorpay/verify-payment',
+      '${ApiConfig.nextJsUrl}/api/razorpay/verify-payment',
       data: {
         'razorpay_order_id': orderId,
         'razorpay_payment_id': paymentId,
         'razorpay_signature': signature,
-        'clerk_id': _clerkUserId,
       },
+      options: Options(
+        headers: {
+          'x-user-id': _clerkUserId,
+        },
+      ),
     );
     return response.data;
   }
@@ -156,6 +162,12 @@ class ApiService {
     return response.data;
   }
 
+  // ─── Match Timeline (2D Replay) ───────────────────────
+  Future<Map<String, dynamic>> getMatchTimeline(String matchId) async {
+    final response = await _dio.get('/api/match-timeline/$matchId');
+    return response.data;
+  }
+
   // ─── Update Quests & Data ─────────────────────────────
   Future<Map<String, dynamic>> updatePlayerDataQuests() async {
     final response = await _dio.post(
@@ -197,7 +209,7 @@ class ApiService {
   }
 
   // ─── Onboard User (Links Riot + Inits Data) ──────────
-  Future<Map<String, dynamic>> onboardUser({
+  Future<dynamic> onboardUser({
     required String clerkId,
     required String puuid,
     required String token,
@@ -206,7 +218,6 @@ class ApiService {
     final response = await _dio.post(
       '/api/battlepass/onboard',
       data: {
-        'clerk_id': clerkId,
         'puuid': puuid,
         'riot_token': token,
         'region': region,

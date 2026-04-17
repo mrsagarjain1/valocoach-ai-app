@@ -538,9 +538,15 @@ class _RatingCard extends StatelessWidget {
           
           if (isNumeric) ...[
             Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(rating, style: AppTheme.krona(size: 40, color: Colors.white)),
+              SizedBox(
+                height: 48,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(rating, style: AppTheme.krona(size: 36, color: Colors.white)),
+                ),
+              ),
               Padding(
-                padding: const EdgeInsets.only(bottom: 6, left: 4),
+                padding: const EdgeInsets.only(bottom: 6, left: 6),
                 child: Text('/ 10', style: AppTheme.krona(size: 14, color: Colors.white54)),
               ),
             ]),
