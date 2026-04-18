@@ -1,3 +1,7 @@
+import java.util.Properties
+import java.io.FileInputStream
+import java.io.File
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -6,9 +10,16 @@ plugins {
 }
 
 android {
-    namespace = "com.example.valocoach_app"
+    namespace = "com.valocoachai"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+
+    // Load key.properties
+    val keyPropertiesFile = rootProject.file("key.properties")
+    val keyProperties = Properties()
+    if (keyPropertiesFile.exists()) {
+        keyProperties.load(FileInputStream(keyPropertiesFile))
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -21,7 +32,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.valocoach_app"
+        applicationId = "com.valocoachai"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -30,11 +41,18 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = keyProperties.getProperty("keyAlias") ?: ""
+            keyPassword = keyProperties.getProperty("keyPassword") ?: ""
+            storeFile = if (keyProperties.getProperty("storeFile") != null) File(keyProperties.getProperty("storeFile")) else null
+            storePassword = keyProperties.getProperty("storePassword") ?: ""
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

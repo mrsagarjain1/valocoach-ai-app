@@ -5,36 +5,40 @@ class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
 
-  late final Dio _dio;
+  Dio? _dio;
   String? _clerkUserId;
 
-  ApiService._internal() {
-    _dio = Dio(
-      BaseOptions(
-        baseUrl: ApiConfig.backendUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 240),
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ApiConfig.apiKey,
-        },
-      ),
-    );
-
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          if (_clerkUserId != null) {
-            options.headers['X-Clerk-User-Id'] = _clerkUserId;
-          }
-          handler.next(options);
-        },
-        onError: (error, handler) {
-          handler.next(error);
-        },
-      ),
-    );
+  Dio get dio {
+    if (_dio == null) {
+      _dio = Dio(
+        BaseOptions(
+          baseUrl: ApiConfig.backendUrl,
+          connectTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 240),
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': ApiConfig.apiKey,
+          },
+        ),
+      );
+      _dio!.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (_clerkUserId != null) {
+              options.headers['X-Clerk-User-Id'] = _clerkUserId;
+            }
+            handler.next(options);
+          },
+          onError: (error, handler) {
+            handler.next(error);
+          },
+        ),
+      );
+    }
+    return _dio!;
   }
+
+  ApiService._internal();
 
   void setClerkUserId(String? userId) {
     _clerkUserId = userId;
@@ -46,20 +50,20 @@ class ApiService {
   // Called immediately after Clerk sign-in to see if the user has a Riot
   // account linked and to fetch basic profile info.
   Future<Map<String, dynamic>> checkUserAuth(String clerkId) async {
-    final response = await _dio.get('/api/check-user-auth/$clerkId');
+    final response = await dio.get('/api/check-user-auth/$clerkId');
     return response.data;
   }
 
   // ─── User Status ─────────────────────────────────────
   Future<Map<String, dynamic>> getUserStatus(String clerkId) async {
-    final response = await _dio.get('/api/user-status/$clerkId');
+    final response = await dio.get('/api/user-status/$clerkId');
     return response.data;
   }
 
   // ─── Premium Sync ─────────────────────────────────────
   // Sync premium status from the backend (e.g. after payment or app restart).
   Future<Map<String, dynamic>> syncPremiumStatus(String clerkId) async {
-    final response = await _dio.post('/api/premium/sync/$clerkId');
+    final response = await dio.post('/api/premium/sync/$clerkId');
     return response.data;
   }
 
@@ -68,7 +72,7 @@ class ApiService {
   Future<Map<String, dynamic>> createRazorpayOrder({
     int amountPaise = ApiConfig.razorpayAmountPaise,
   }) async {
-    final response = await _dio.post(
+    final response = await dio.post(
       '${ApiConfig.nextJsUrl}/api/razorpay/create-order',
       data: {
         'amount': amountPaise,
@@ -92,7 +96,7 @@ class ApiService {
     required String paymentId,
     required String signature,
   }) async {
-    final response = await _dio.post(
+    final response = await dio.post(
       '${ApiConfig.nextJsUrl}/api/razorpay/verify-payment',
       data: {
         'razorpay_order_id': orderId,
@@ -116,7 +120,7 @@ class ApiService {
     String mode = 'competitive',
     String platform = 'pc',
   }) async {
-    final response = await _dio.post(
+    final response = await dio.post(
       '/player-stat',
       data: {
         'name': name,
@@ -137,7 +141,7 @@ class ApiService {
     String mode = 'competitive',
     String platform = 'pc',
   }) async {
-    final response = await _dio.post(
+    final response = await dio.post(
       '/player-analysis',
       data: {
         'name': name,
@@ -152,25 +156,25 @@ class ApiService {
 
   // ─── Match Analysis AI ────────────────────────────────
   Future<Map<String, dynamic>> getMatchAnalysis(String matchId) async {
-    final response = await _dio.post('/api/match-analysis/ai/$matchId');
+    final response = await dio.post('/api/match-analysis/ai/$matchId');
     return response.data;
   }
 
   // ─── Match Analysis Full Data ─────────────────────────
   Future<Map<String, dynamic>> getMatchAnalysisData() async {
-    final response = await _dio.get('/api/match-analysis');
+    final response = await dio.get('/api/match-analysis');
     return response.data;
   }
 
   // ─── Match Timeline (2D Replay) ───────────────────────
   Future<Map<String, dynamic>> getMatchTimeline(String matchId) async {
-    final response = await _dio.get('/api/match-timeline/$matchId');
+    final response = await dio.get('/api/match-timeline/$matchId');
     return response.data;
   }
 
   // ─── Update Quests & Data ─────────────────────────────
   Future<Map<String, dynamic>> updatePlayerDataQuests() async {
-    final response = await _dio.post(
+    final response = await dio.post(
       '/api/update-player-data-quests',
       data: {
         'platform': 'pc',
@@ -189,7 +193,7 @@ class ApiService {
     final queryParams = <String, dynamic>{};
     if (questType != null) queryParams['quest_type'] = questType;
 
-    final response = await _dio.get(
+    final response = await dio.get(
       '/api/quests/$clerkId',
       queryParameters: queryParams,
     );
@@ -198,13 +202,13 @@ class ApiService {
 
   // ─── Battlepass ───────────────────────────────────────
   Future<Map<String, dynamic>> getBattlepass(String clerkId) async {
-    final response = await _dio.get('/api/battlepass/$clerkId');
+    final response = await dio.get('/api/battlepass/$clerkId');
     return response.data;
   }
 
   // ─── Battlepass Leaderboard ───────────────────────────
   Future<Map<String, dynamic>> getBattlepassLeaderboard() async {
-    final response = await _dio.get('/api/battlepass/leaderboard');
+    final response = await dio.get('/api/battlepass/leaderboard');
     return response.data;
   }
 
@@ -215,7 +219,7 @@ class ApiService {
     required String token,
     String region = 'ap',
   }) async {
-    final response = await _dio.post(
+    final response = await dio.post(
       '/api/battlepass/onboard',
       data: {
         'puuid': puuid,

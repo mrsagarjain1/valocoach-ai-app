@@ -63,3 +63,19 @@ node_modules/
 # Environment Variables
 .env
 .env.*
+
+# Android Gradle
+.gradle/
+
+# iOS CocoaPods
+ios/Pods/
+ios/Podfile.lock
+Runner/GeneratedPlugins.swift
+
+# Generated code
+*.freezed.dart
+*.g.dart
+*.config.dart
+
+# OS files
+Thumbs.db
