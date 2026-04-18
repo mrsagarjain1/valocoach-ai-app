@@ -17,9 +17,14 @@ import 'screens/clerk_sign_in_screen.dart';
 import 'widgets/bottom_nav.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {
+    // .env not found — fall back to defaults in ApiConfig
+  }
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

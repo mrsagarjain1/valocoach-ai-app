@@ -501,8 +501,23 @@ class PerMatchAnalysisNotifier extends StateNotifier<PerMatchAnalysisState> {
       await _cache.saveJson(cacheKey, res);
       
       state = state.copyWith(isLoading: false, data: res);
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      String message;
+      if (status == 429) {
+        message = 'The AI is overloaded right now (rate limited). Please wait 30 seconds and try again.';
+      } else if (status == 503 || status == 502) {
+        message = 'The AI server is starting up. Please wait a moment and try again.';
+      } else if (status != null) {
+        message = 'Server error ($status). Please try again.';
+      } else if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
+        message = 'Request timed out. The AI may be processing a large match. Please try again.';
+      } else {
+        message = e.message ?? 'Network error. Please check your connection.';
+      }
+      state = state.copyWith(isLoading: false, error: message);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: 'Unexpected error: ${e.toString()}');
     }
   }
 }

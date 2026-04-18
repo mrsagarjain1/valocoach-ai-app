@@ -60,7 +60,10 @@ class _PerMatchAnalysisBodyState extends ConsumerState<PerMatchAnalysisBody>
     final ai = state.data?['ai_analysis'];
 
     if (state.isLoading) return _LoadingView();
-    if (state.error != null) return _ErrorView(error: state.error!);
+    if (state.error != null) return _ErrorView(
+      error: state.error!,
+      onRetry: () => ref.read(perMatchAnalysisProvider(widget.matchId).notifier).fetchAnalysis(),
+    );
     if (ai == null) return const SizedBox();
 
     return Column(
@@ -164,29 +167,25 @@ class _SummaryTab extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text('PERFORMANCE RATING', 
-                style: AppTheme.inter(size: 10, color: AppTheme.textMuted, weight: FontWeight.w800, letterSpacing: 2)),
+                style: AppTheme.krona(size: 16, color: AppTheme.textMuted, letterSpacing: 2)),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 44,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  ai['performance_rating']?.toString() ?? 'N/A', 
-                  style: AppTheme.krona(size: 38, color: Colors.white, letterSpacing: 1),
-                ),
-              ),
+            Text(
+              ai['performance_rating']?.toString() ?? 'N/A', 
+              style: AppTheme.inter(size: 15, color: Colors.white, weight: FontWeight.w600, height: 1.5),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             if (ai['player_archetype'] != null)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppTheme.accentYellow.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.accentYellow.withValues(alpha: 0.2)),
                 ),
                 child: Text(
                   ai['player_archetype']!.toString().toUpperCase(), 
-                  style: AppTheme.inter(size: 12, color: AppTheme.accentYellow, weight: FontWeight.w800, letterSpacing: 0.5),
+                  style: AppTheme.krona(size: 14, color: AppTheme.accentYellow, letterSpacing: 1),
                 ),
               ),
           ]),
@@ -473,19 +472,48 @@ class _LoadingView extends StatelessWidget {
 
 class _ErrorView extends StatelessWidget {
   final String error;
-  const _ErrorView({required this.error});
+  final VoidCallback? onRetry;
+  const _ErrorView({required this.error, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
+    final bool isRateLimit = error.contains('rate limit') || error.contains('overloaded');
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.error_outline_rounded, color: AppTheme.primaryRed, size: 48),
+          Icon(
+            isRateLimit ? Icons.hourglass_top_rounded : Icons.error_outline_rounded, 
+            color: isRateLimit ? AppTheme.accentYellow : AppTheme.primaryRed, 
+            size: 52,
+          ),
           const SizedBox(height: 20),
-          Text('COULD NOT LOAD INSIGHTS', style: AppTheme.krona(size: 16)),
+          Text(
+            isRateLimit ? 'AI IS BUSY' : 'COULD NOT LOAD INSIGHTS', 
+            style: AppTheme.krona(size: 16),
+          ),
           const SizedBox(height: 10),
           Text(error, style: AppTheme.inter(size: 13, color: AppTheme.textMuted), textAlign: TextAlign.center),
+          if (onRetry != null) ...[
+            const SizedBox(height: 28),
+            GestureDetector(
+              onTap: onRetry,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                decoration: BoxDecoration(
+                  gradient: isRateLimit 
+                      ? LinearGradient(colors: [AppTheme.accentYellow.withValues(alpha: 0.8), AppTheme.accentYellow])
+                      : AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Text('TRY AGAIN', style: AppTheme.krona(size: 11, letterSpacing: 1.5)),
+                ]),
+              ),
+            ),
+          ],
         ]),
       ),
     );
